@@ -1,0 +1,17 @@
+# --- environments & caches
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.ipynb_checkpoints/
+.pytest_cache/
+.DS_Store
+
+# --- data
+# Raw dataset (~43 MB) is re-downloadable from Kaggle; place it in data/raw/.
+data/raw/*.csv
+
+# --- results
+# results/ IS committed, including results/predictions.csv.gz (~6 MB): it is the
+# audit trail for every reported number and lets notebook 04 run without
+# re-training. Regenerate everything with `python scripts/run_phase1.py`.
