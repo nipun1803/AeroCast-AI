@@ -1,0 +1,3 @@
+comparison,adversarial_auc,top_features
+train vs calib,1.0,"hist_rate_network_7d, hist_rate_dest_14d, hist_rate_carrier_14d, hist_logn_origin_7d, hist_rate_origin_7d"
+train vs test,1.0,"days_to_holiday, origin, hist_logn_origin_7d, hist_rate_network_7d, hist_rate_carrier_14d"
