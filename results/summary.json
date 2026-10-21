@@ -1,0 +1,303 @@
+{
+  "decision_time": "20:00 NYC on D-1; outcomes enter history once known",
+  "target": "arr_delay >= 15 min; cancelled/diverted dropped",
+  "splits": {
+    "train": {
+      "rows": 211684,
+      "delay_rate": 0.26489484325693013,
+      "from": "2013-01-08",
+      "to": "2013-08-31"
+    },
+    "calib": {
+      "rows": 55628,
+      "delay_rate": 0.15695333285395843,
+      "from": "2013-09-01",
+      "to": "2013-10-31"
+    },
+    "test": {
+      "rows": 53991,
+      "delay_rate": 0.2583023096442,
+      "from": "2013-11-01",
+      "to": "2013-12-31"
+    }
+  },
+  "cv_val_months": [
+    5,
+    6,
+    7,
+    8
+  ],
+  "history_settings": {
+    "smoothing_m": 5,
+    "long_window": 14
+  },
+  "n_features": 45,
+  "feature_groups": {
+    "categorical": 3,
+    "schedule": 10,
+    "congestion": 7,
+    "history_entity": 18,
+    "history_day": 7
+  },
+  "final_model": {
+    "model": "logreg",
+    "rule": "higher mean rolling-CV PR-AUC",
+    "fixed_before_test": true
+  },
+  "xgb_params": {
+    "max_depth": 3,
+    "learning_rate": 0.1,
+    "min_child_weight": 100,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8,
+    "reg_lambda": 1.0,
+    "n_estimators": 60
+  },
+  "xgb_cv_std": 0.06566007337368855,
+  "logreg_C": 0.1,
+  "cv_pr_auc": {
+    "logreg": {
+      "mean": 0.47053278850577673,
+      "std": 0.0706402158318128
+    },
+    "xgboost": {
+      "mean": 0.4692209467222973,
+      "std": 0.06566007337368855
+    }
+  },
+  "calibration_rule": "raw unless Platt/isotonic (fit Sep) lowers Oct ECE by > 0.005",
+  "calibrator_selected": {
+    "logreg": "platt",
+    "xgboost": "raw"
+  },
+  "rolling_calibration_days": 28,
+  "primary_policy_test": {
+    "policy": "daily top 10%",
+    "model": "logreg_cal",
+    "precision": 0.4443625644804716,
+    "recall": 0.17295281801233328,
+    "lift": 1.7203197489506052,
+    "flag_rate": 0.10053527439758478
+  },
+  "test": [
+    {
+      "model": "prior",
+      "pr_auc": 0.2583023096442,
+      "roc_auc": 0.5,
+      "brier": 0.19162568797610677,
+      "ece": 0.006592533612730045,
+      "ece_equal_mass": 0.08415585915624114,
+      "mean_pred": 0.26489484325693,
+      "base_rate": 0.2583023096442,
+      "oracle_recall@p0.30": 0.0,
+      "oracle_recall@p0.40": 0.0,
+      "oracle_recall@p0.50": 0.0
+    },
+    {
+      "model": "route_history",
+      "pr_auc": 0.3534050383910727,
+      "roc_auc": 0.6208306553950841,
+      "brier": 0.18693607649854127,
+      "ece": 0.03731247376411486,
+      "ece_equal_mass": 0.03804000687407959,
+      "mean_pred": 0.24195753703280462,
+      "base_rate": 0.2583023096442,
+      "oracle_recall@p0.30": 0.786820593718629,
+      "oracle_recall@p0.40": 0.2443711458482719,
+      "oracle_recall@p0.50": 0.016277068693532196
+    },
+    {
+      "model": "logreg_cal",
+      "pr_auc": 0.39369508345052817,
+      "roc_auc": 0.6537039456024277,
+      "brier": 0.18722156226553238,
+      "ece": 0.08152446972201369,
+      "ece_equal_mass": 0.08152446972201369,
+      "mean_pred": 0.17677783992218624,
+      "base_rate": 0.2583023096442,
+      "oracle_recall@p0.30": 0.8469095081026817,
+      "oracle_recall@p0.40": 0.43030259572637314,
+      "oracle_recall@p0.50": 0.12942779291553133
+    },
+    {
+      "model": "xgboost_cal",
+      "pr_auc": 0.40981916552905373,
+      "roc_auc": 0.66805334641007,
+      "brier": 0.178785040974617,
+      "ece": 0.025733964707216585,
+      "ece_equal_mass": 0.025495655102878254,
+      "mean_pred": 0.23280663788318634,
+      "base_rate": 0.2583023096442,
+      "oracle_recall@p0.30": 0.8745159902480998,
+      "oracle_recall@p0.40": 0.502724795640327,
+      "oracle_recall@p0.50": 0.17775706295712032
+    }
+  ],
+  "oracle_metric_note": "oracle_recall@p tunes the threshold on the test labels: curve metric for model comparison only",
+  "bootstrap_test": {
+    "pr_auc": {
+      "xgboost_ci95": [
+        0.34290096934282516,
+        0.47497732629446987
+      ],
+      "logreg_ci95": [
+        0.33567110719369575,
+        0.4389255548721607
+      ],
+      "diff_xgboost_minus_logreg_ci95": [
+        -0.005331742247771538,
+        0.04394196658817615
+      ],
+      "p_xgboost_not_better": 0.15
+    },
+    "roc_auc": {
+      "xgboost_ci95": [
+        0.6350350266262152,
+        0.6939195217499119
+      ],
+      "logreg_ci95": [
+        0.6182360445750009,
+        0.6827071860341705
+      ],
+      "diff_xgboost_minus_logreg_ci95": [
+        -0.0033701979478298724,
+        0.03652876552657511
+      ],
+      "p_xgboost_not_better": 0.09
+    }
+  },
+  "operating_policies": [
+    {
+      "model": "route_history",
+      "split": "calib",
+      "role": "primary",
+      "policy": "daily top 10%",
+      "flag_rate": 0.10047098583447185,
+      "precision": 0.23277867239219896,
+      "recall": 0.14900927728782498,
+      "lift": 1.483107546424607,
+      "threshold": NaN
+    },
+    {
+      "model": "route_history",
+      "split": "calib",
+      "role": "secondary",
+      "policy": "frozen thr for P>=0.4 (from Sep-Oct)",
+      "flag_rate": 0.0008628748112461351,
+      "precision": 0.4166666666666667,
+      "recall": 0.0022906883518497307,
+      "lift": 2.654716909097851,
+      "threshold": 0.46890697626659184
+    },
+    {
+      "model": "route_history",
+      "split": "test",
+      "role": "primary",
+      "policy": "daily top 10%",
+      "flag_rate": 0.10053527439758478,
+      "precision": 0.3588798820928519,
+      "recall": 0.13968162914097232,
+      "lift": 1.3893792997329102,
+      "threshold": NaN
+    },
+    {
+      "model": "route_history",
+      "split": "test",
+      "role": "secondary",
+      "policy": "frozen thr for P>=0.4 (from Sep-Oct)",
+      "flag_rate": 0.05882461891796781,
+      "precision": 0.4250629722921914,
+      "recall": 0.09680195038003729,
+      "lift": 1.6456026772571135,
+      "threshold": 0.46890697626659184
+    },
+    {
+      "model": "logreg_cal",
+      "split": "calib",
+      "role": "primary",
+      "policy": "daily top 10%",
+      "flag_rate": 0.10047098583447185,
+      "precision": 0.3032742887815352,
+      "recall": 0.1941358378192647,
+      "lift": 1.9322577180551184,
+      "threshold": NaN
+    },
+    {
+      "model": "logreg_cal",
+      "split": "calib",
+      "role": "secondary",
+      "policy": "frozen thr for P>=0.4 (from Sep-Oct)",
+      "flag_rate": 0.0382001869562091,
+      "precision": 0.4,
+      "recall": 0.09735425495361356,
+      "lift": 2.5485282327339367,
+      "threshold": 0.3312401987503297
+    },
+    {
+      "model": "logreg_cal",
+      "split": "test",
+      "role": "primary",
+      "policy": "daily top 10%",
+      "flag_rate": 0.10053527439758478,
+      "precision": 0.4443625644804716,
+      "recall": 0.17295281801233328,
+      "lift": 1.7203197489506052,
+      "threshold": NaN
+    },
+    {
+      "model": "logreg_cal",
+      "split": "test",
+      "role": "secondary",
+      "policy": "frozen thr for P>=0.4 (from Sep-Oct)",
+      "flag_rate": 0.07466059158007816,
+      "precision": 0.49342594889605557,
+      "recall": 0.14262154022658827,
+      "lift": 1.9102653382222095,
+      "threshold": 0.3312401987503297
+    },
+    {
+      "model": "xgboost_cal",
+      "split": "calib",
+      "role": "primary",
+      "policy": "daily top 10%",
+      "flag_rate": 0.10047098583447185,
+      "precision": 0.30005367686527107,
+      "recall": 0.19207421830259994,
+      "lift": 1.9117381670669225,
+      "threshold": NaN
+    },
+    {
+      "model": "xgboost_cal",
+      "split": "calib",
+      "role": "secondary",
+      "policy": "frozen thr for P>=0.4 (from Sep-Oct)",
+      "flag_rate": 0.0063277486158049906,
+      "precision": 0.4005681818181818,
+      "recall": 0.0161493528805406,
+      "lift": 2.552148301246343,
+      "threshold": 0.47336697578430176
+    },
+    {
+      "model": "xgboost_cal",
+      "split": "test",
+      "role": "primary",
+      "policy": "daily top 10%",
+      "flag_rate": 0.10053527439758478,
+      "precision": 0.43515106853352986,
+      "recall": 0.16936756059085042,
+      "lift": 1.6846580626124916,
+      "threshold": NaN
+    },
+    {
+      "model": "xgboost_cal",
+      "split": "test",
+      "role": "secondary",
+      "policy": "frozen thr for P>=0.4 (from Sep-Oct)",
+      "flag_rate": 0.0390620658998722,
+      "precision": 0.5680417259364627,
+      "recall": 0.08590276781872938,
+      "lift": 2.1991352950692353,
+      "threshold": 0.47336697578430176
+    }
+  ]
+}
