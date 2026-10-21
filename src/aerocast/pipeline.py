@@ -222,19 +222,34 @@ def train_xgb(P: Prepared, n_configs: int = 16) -> XGBResult:
     return XGBResult(model, params, folds, agg.sort_values("mean_pr_auc", ascending=False))
 
 
-def cv_summary(lr: LogRegResult, xgb: XGBResult) -> dict:
-    lr_s = lr.cv[lr.cv.C == lr.C]["val_pr_auc"]
+def cv_summary(lr: LogRegResult, xgb: XGBResult, P: Prepared) -> dict:
+    """Rolling-CV PR-AUC of each model AS DEPLOYED.
+
+    XGBoost's search score early-stops on each validation fold, i.e. the
+    tree count is tuned on the data it is scored on -> optimistic. The
+    deployed model uses the fold-averaged tree count, so it is re-scored on
+    the same folds with that fixed count (no in-fold tuning). Both numbers are
+    reported; the fixed-count one is used for model selection.
+    """
+    lr_s = lr.cv[lr.cv.C == lr.C].set_index("fold")["val_pr_auc"]
+    fixed = models.cv_score_features(P.Xs["train"], P.ys["train"], P.labels.months["train"],
+                                     P.feat_cols, xgb.params)
+    best = xgb.cv_configs.index[0]
+    es = xgb.cv_folds[xgb.cv_folds.config == best]["val_pr_auc"]
     return {
-        "logreg": {"mean": float(lr_s.mean()), "std": float(lr_s.std())},
-        "xgboost": {"mean": float(xgb.cv_configs.iloc[0]["mean_pr_auc"]),
-                    "std": float(xgb.cv_configs.iloc[0]["std_pr_auc"])},
+        "logreg": {"mean": float(lr_s.mean()), "std": float(lr_s.std()),
+                   "folds": [float(v) for v in lr_s]},
+        "xgboost": {"mean": float(fixed.mean()), "std": float(fixed.std()),
+                    "folds": [float(v) for v in fixed]},
+        "xgboost_infold_early_stopping": {"mean": float(es.mean()), "std": float(es.std()),
+                                          "folds": [float(v) for v in es]},
     }
 
 
 def select_final_model(cv: dict) -> str:
     """Final model = higher mean rolling-CV PR-AUC (rule fixed before test).
     Fails loudly if the CV evidence disagrees with ``config.FINAL_MODEL``."""
-    best = max(cv, key=lambda m: cv[m]["mean"])
+    best = max(MODELS, key=lambda m: cv[m]["mean"])
     if best != config.FINAL_MODEL:
         raise RuntimeError(f"CV selects {best!r} but config.FINAL_MODEL={config.FINAL_MODEL!r}")
     return best
@@ -507,14 +522,19 @@ def target_sensitivity(main: Prepared, main_raw: dict, C: float, xgb_params: dic
 
 def distribution_shift(P: Prepared) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """PSI per feature (train reference) and adversarial-validation AUC for
-    train-vs-calib and train-vs-test, with the features driving each."""
+    train-vs-calib and train-vs-test: with all features, and per feature
+    family (to locate the shift), plus the features driving the full model."""
     psi = drift.psi_table(P.Xs, P.groups)
+    sets = {"all features": P.feat_cols, **P.groups}
     adv_rows, imps = [], {}
     for cur in ["calib", "test"]:
-        auc, imp = drift.adversarial_validation(P.Xs["train"], P.Xs[cur])
-        adv_rows.append({"comparison": f"train vs {cur}", "adversarial_auc": auc,
-                         "top_features": ", ".join(imp.head(5).index)})
-        imps[cur] = imp
+        for label, cols in sets.items():
+            auc, imp = drift.adversarial_validation(P.Xs["train"][cols], P.Xs[cur][cols])
+            adv_rows.append({"comparison": f"train vs {cur}", "features": label,
+                             "n_features": len(cols), "adversarial_auc": auc,
+                             "top_features": ", ".join(imp.head(4).index)})
+            if label == "all features":
+                imps[cur] = imp
     return psi, pd.DataFrame(adv_rows), pd.DataFrame(imps).fillna(0)
 
 
@@ -563,13 +583,14 @@ def evaluation_figures(labels: Labels, final_preds: dict, drift_tbl: pd.DataFram
             f"{label} rolling Platt {config.ROLLING_CALIB_DAYS}d":
                 final_preds[f"{m}_rolling{config.ROLLING_CALIB_DAYS}"]["test"]},
             f"{label} reliability - test")
-    figs["monthly_drift_logreg"] = plots.monthly_drift(drift_tbl[drift_tbl.model == f"{final}_raw"])
+    figs["monthly_drift_final"] = plots.monthly_drift(drift_tbl[drift_tbl.model == f"{final}_raw"])
     top = gain.head(20)
     figs["xgb_gain_top20"] = plots.hbar(top.to_numpy(), top.index.tolist(),
                                         "XGBoost top-20 features (gain)", "Average gain")
+    pf = perm[perm.model == final]
     figs["perm_importance_groups"] = plots.hbar(
-        perm["pr_auc_drop"].to_numpy(), perm["group"].tolist(),
-        "Grouped permutation importance (Sep-Oct)", "Drop in PR-AUC")
+        pf["pr_auc_drop"].to_numpy(), pf["group"].tolist(),
+        f"Grouped permutation importance, {final} (Sep-Oct)", "Drop in PR-AUC")
     figs["ablation_cv"] = plots.ablation_bars(abl)
     top_psi = psi.head(15)
     figs["psi_top15"] = plots.hbar(top_psi["psi_test"].to_numpy(), top_psi["feature"].tolist(),

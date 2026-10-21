@@ -78,8 +78,12 @@ SMOOTHING_M_GRID = [5, 20, 50]
 LONG_WINDOW_GRID = [14, 28, 56]
 
 # --- Final model (fixed before test) -----------------------------------------
-# Rule: the model family with the higher mean rolling-CV PR-AUC. The pipeline
+# Rule: the model family with the higher mean rolling-CV PR-AUC, each scored
+# AS DEPLOYED (XGBoost at its fixed, fold-averaged tree count; its search score
+# early-stops on the validation fold itself and is optimistic). The pipeline
 # re-derives this from CV and fails loudly if it disagrees with the value here.
+# Decision-clock features: LogReg 0.4705 vs XGBoost 0.4450 (fixed trees);
+# XGBoost's in-fold early-stopping score (0.4754) is reported but not used.
 FINAL_MODEL = "logreg"
 
 # --- Calibration (fixed before test) -----------------------------------------

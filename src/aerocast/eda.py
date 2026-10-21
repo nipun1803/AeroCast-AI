@@ -152,3 +152,16 @@ def within_hour_gap(tbl: pd.DataFrame) -> pd.Series:
     gap = tbl["high"] - tbl["low"]
     return pd.Series({"mean high-low gap": gap.mean(), "hours with high > low": int((gap > 0).sum()),
                       "hours": len(gap)})
+
+
+def arrival_timing_summary(df: pd.DataFrame) -> pd.DataFrame:
+    """For completed flights: when does the outcome become usable (days after
+    the flight date, under the decision clock), and how late are those
+    flights? Lag 1 = known by DECISION_HOUR on the flight date; lag 2 = landed
+    after it, so it first counts the day after tomorrow."""
+    from . import data
+    done = df[df["is_delayed"].notna()]
+    lag = (data.available_date(done["arr_known_dt"]) - done["date"]).dt.days
+    return done.groupby(lag.rename("usable_after_days")).agg(
+        flights=("id", "size"), delay_rate=("is_delayed", "mean")).assign(
+        share=lambda t: t["flights"] / t["flights"].sum())

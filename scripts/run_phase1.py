@@ -24,6 +24,8 @@ from pathlib import Path
 # (macOS may flag it hidden in iCloud-synced folders, and Python then skips it).
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+import pandas as pd  # noqa: E402
+
 from aerocast import config, data, pipeline, plots  # noqa: E402
 
 
@@ -67,7 +69,7 @@ def main(quick: bool = False):
     raw_preds["xgboost"] = pipeline.predict_splits(xgb.model, P)
     log(f"best xgb params {xgb.params}")
 
-    cv = pipeline.cv_summary(lr, xgb)
+    cv = pipeline.cv_summary(lr, xgb, P)
     final_model = pipeline.select_final_model(cv)
     log(f"final model (CV rule, fixed before test): {final_model}  {cv}")
 
@@ -109,7 +111,10 @@ def main(quick: bool = False):
     log("\n" + abl_steps.round(4).to_string())
 
     log("grouped permutation importance (Sep-Oct)")
-    perm = pipeline.grouped_permutation_importance(P, xgb.model, 3 if quick else 5)
+    reps = 3 if quick else 5
+    perm = pd.concat([pipeline.grouped_permutation_importance(P, mdl, reps).assign(model=name)
+                      for name, mdl in [("logreg", lr.model), ("xgboost", xgb.model)]],
+                     ignore_index=True)
     perm.to_csv(R / "permutation_importance_groups.csv", index=False)
     gain = pipeline.xgb_gain(xgb.model)
     gain.to_csv(R / "xgb_gain_importance.csv")

@@ -1,3 +1,13 @@
-comparison,adversarial_auc,top_features
-train vs calib,1.0,"hist_rate_network_7d, hist_rate_dest_14d, hist_rate_carrier_14d, hist_logn_origin_7d, hist_rate_origin_7d"
-train vs test,1.0,"days_to_holiday, origin, hist_logn_origin_7d, hist_rate_network_7d, hist_rate_carrier_14d"
+comparison,features,n_features,adversarial_auc,top_features
+train vs calib,all features,45,1.0,"hist_rate_network_7d, hist_rate_dest_14d, hist_rate_carrier_14d, hist_logn_origin_7d"
+train vs calib,categorical,3,0.5620837279187939,"dest, carrier, origin"
+train vs calib,schedule,10,0.784721456520697,"days_to_holiday, dow_cos, dow_sin, arr_tod_sin"
+train vs calib,congestion,7,0.9833310113611851,"sched_origin_day, sched_carrier_origin_day, sched_origin_hour, sched_origin_3h"
+train vs calib,history_entity,18,0.9998733801622683,"hist_rate_origin_7d, hist_rate_dest_14d, hist_rate_carrier_14d, hist_logn_origin_7d"
+train vs calib,history_day,7,1.0,"hist_rate_network_7d, hist_rate_network_1d, hist_logn_origin_1d, hist_cancel_network_1d"
+train vs test,all features,45,1.0,"days_to_holiday, origin, hist_logn_origin_7d, hist_rate_network_7d"
+train vs test,categorical,3,0.5621264227679923,"dest, carrier, origin"
+train vs test,schedule,10,0.9210857994850994,"days_to_holiday, is_weekend, dow_cos, dow_sin"
+train vs test,congestion,7,0.963410986862008,"sched_origin_day, sched_carrier_origin_day, sched_origin_3h, tail_legs_day"
+train vs test,history_entity,18,0.997942686744087,"hist_rate_origin_7d, hist_logn_origin_7d, hist_rate_tailnum_14d, hist_rate_carrier_14d"
+train vs test,history_day,7,1.0,"hist_rate_network_7d, hist_cancel_network_1d, hist_rate_network_1d, hist_logn_origin_1d"
