@@ -15,15 +15,15 @@ from . import config, data, drift, evaluate, features, models, plots
 
 MODELS = ["logreg", "xgboost"]
 # Variant keys: <model>_raw | _platt | _isotonic (static, fit on Sep-Oct) | _rolling<N> (causal
-# rolling Platt) | _cal (= the static variant chosen by the a-priori margin rule).
+# rolling Platt) | _rule_selected (= the static variant chosen by the a-priori margin rule).
 # Internally the pipeline works with these keys; every saved table and figure
 # carries the explicit labels produced by ``label`` instead.
 ROLL = config.ROLLING_CALIB_DAYS
-HEADLINE = ["prior", "route_history", "logreg_raw", "logreg_cal", f"logreg_rolling{ROLL}",
-            "xgboost_cal", f"xgboost_rolling{ROLL}"]
+HEADLINE = ["prior", "route_history", "logreg_raw", "logreg_rule_selected", f"logreg_rolling{ROLL}",
+            "xgboost_rule_selected", f"xgboost_rolling{ROLL}"]
 # Models compared by the operating policies (the daily top-k% policy only uses
 # within-day ranks, which every monotone recalibration leaves unchanged).
-POLICY_VARIANTS = ["prior", "route_history", "logreg_cal", "xgboost_cal"]
+POLICY_VARIANTS = ["prior", "route_history", "logreg_rule_selected", "xgboost_rule_selected"]
 ORACLE_COLS = [f"oracle_recall@p{t:.2f}" for t in config.PRECISION_SWEEP]
 SHOW_COLS = ["pr_auc", "roc_auc", "brier", "ece", "ece_equal_mass", "mean_pred", "base_rate",
              *ORACLE_COLS]
@@ -39,14 +39,14 @@ CAL_NAME = {"raw": "raw", "platt": "Platt", "isotonic": "isotonic"}
 
 def variant_label(key: str, choice: dict | None = None) -> tuple[str, str]:
     """(display label, calibration description) of a variant key, e.g.
-    ``logreg_cal`` -> ("LogReg (Platt, rule-selected)", "Platt (rule-selected)")."""
+    ``logreg_rule_selected`` -> ("LogReg (Platt, rule-selected)", "Platt (rule-selected)")."""
     if key == "prior":
         return "Prior (base rate)", "none"
     if key == "route_history":
         return "Route history", "none (smoothed rate)"
     fam, tag = key.split("_", 1)
     name = FAMILY[fam]
-    if tag == "cal":
+    if tag == "rule_selected":
         if choice is None:
             raise ValueError("the rule-selected variant needs the calibration choice")
         cal = CAL_NAME[choice[fam]]
@@ -176,12 +176,16 @@ def tune_history(raw: pd.DataFrame) -> pd.DataFrame:
     best C of ``models.LOGREG_CS`` (chosen by the same rolling CV), so the
     history settings are not conditioned on an arbitrary fixed C. The column
     ``cv_pr_auc_mean_C0.001`` keeps the earlier fixed-C score for comparison.
-    The last row repeats the configured pair with the clock at 00:00 on D-1
-    (= nothing from D-1 is used, i.e. a ~2-day lag)."""
+    The last two rows repeat the configured pair with the clock at 00:00 on D-1
+    (= nothing from D-1 is used, i.e. a ~2-day lag) and at 24:00 on D-1 (= every
+    D-1 arrival counts for D, i.e. the leaky variant the clock replaces)."""
     rows = []
     combos = [(m, L, config.DECISION_HOUR) for m in config.SMOOTHING_M_GRID
               for L in config.LONG_WINDOW_GRID]
-    combos.append((config.SMOOTHING_M, config.LONG_WINDOW, 0))
+    # clock comparison at the configured (m, window): 00:00 on D-1 (~2-day lag) and
+    # 24:00 on D-1, i.e. every D-1 arrival counts for D (the leaky variant)
+    combos += [(config.SMOOTHING_M, config.LONG_WINDOW, 0),
+               (config.SMOOTHING_M, config.LONG_WINDOW, 24)]
     for m, L, hour in combos:
         P = prepare(raw=raw, features_kw={"m": m, "long_window": L, "decision_hour": hour})
         best_C, cv = models.cv_logreg(P.Xs["train"], P.ys["train"], P.labels.months["train"],
@@ -379,7 +383,7 @@ def single_month_tree_curve(P: Prepared, params: dict, max_trees: int = 800,
 def calibrate(labels: Labels, raw_preds: dict) -> tuple[dict, dict, pd.DataFrame]:
     """Static variants raw / Platt / isotonic (fit on all of Sep-Oct), causal
     rolling Platt for N in ROLLING_CALIB_SENSITIVITY (calib + test only), and
-    ``<model>_cal`` = the variant chosen by the a-priori margin rule
+    ``<model>_rule_selected`` = the variant chosen by the a-priori margin rule
     (``evaluate.select_calibrator``: fit Sep -> check Oct)."""
     final = {m: raw_preds[m] for m in ["prior", "route_history"]}
     y_cal, m_cal = labels.y["calib"], labels.months["calib"]
@@ -394,7 +398,7 @@ def calibrate(labels: Labels, raw_preds: dict) -> tuple[dict, dict, pd.DataFrame
         for tag, cls in evaluate.CALIBRATORS.items():
             fitted = cls().fit(p_cal, y_cal)
             final[f"{m}_{tag}"] = {s: fitted.predict(raw_preds[m][s]) for s in raw_preds[m]}
-        final[f"{m}_cal"] = final[f"{m}_{choice[m]}"]
+        final[f"{m}_rule_selected"] = final[f"{m}_{choice[m]}"]
         pool_scores = np.concatenate([raw_preds[m][s] for s in config.SPLITS])
         for n in config.ROLLING_CALIB_SENSITIVITY:
             q = evaluate.rolling_platt(pool_scores, pool_y, pool_dates, pool_avail,
@@ -411,7 +415,10 @@ def frozen_thresholds(labels: Labels, final_preds: dict) -> dict[str, float]:
             for n, p in final_preds.items()}
 
 
-def metrics_table(labels: Labels, final_preds: dict, thresholds: dict) -> pd.DataFrame:
+def metrics_table(labels: Labels, final_preds: dict, thresholds: dict,
+                  choice: dict) -> pd.DataFrame:
+    """Metrics of every variant on train/calib/test and test Nov / Dec, with
+    explicit variant labels and a ``calibration`` column."""
     rows = []
     test_month = labels.months["test"]
     for name, p in final_preds.items():
@@ -424,16 +431,30 @@ def metrics_table(labels: Labels, final_preds: dict, thresholds: dict) -> pd.Dat
             rows.append({"model": name, "split": f"test_m{mo}",
                          **evaluate.metric_bundle(labels.y["test"][mask], p["test"][mask],
                                                   thresholds[name])})
-    return pd.DataFrame(rows)
+    return label(pd.DataFrame(rows), choice)
 
 
-def headline_table(results: pd.DataFrame, names=HEADLINE) -> pd.DataFrame:
-    tbl = results[(results.split == "test") & results.model.isin(names)].set_index("model")
-    return tbl.loc[list(names)]
+def headline_table(results: pd.DataFrame, names=HEADLINE, split: str = "test") -> pd.DataFrame:
+    """Baselines + learned models, each with its calibration variant (rows in
+    ``names`` order). Input: the labelled ``metrics_table``."""
+    tbl = results[(results.split == split) & results.variant.isin(names)]
+    return tbl.set_index("variant").loc[list(names)].reset_index()
 
 
-def operating_policies(labels: Labels, final_preds: dict, thresholds: dict,
-                       names=HEADLINE[1:]) -> pd.DataFrame:
+def headline_by_month(results: pd.DataFrame, names=HEADLINE) -> pd.DataFrame:
+    """The headline table for test November and December separately."""
+    return pd.concat([headline_table(results, names, split=sp)
+                      for sp in ("test_m11", "test_m12")], ignore_index=True)
+
+
+def mean_scores(raw_preds: dict) -> pd.DataFrame:
+    """Mean raw score per model and split (a prediction-level artefact)."""
+    return pd.DataFrame({m: {s: float(np.mean(p, dtype=np.float64)) for s, p in d.items()}
+                         for m, d in raw_preds.items()}).T.rename_axis("model").reset_index()
+
+
+def operating_policies(labels: Labels, final_preds: dict, thresholds: dict, choice: dict,
+                       names=POLICY_VARIANTS) -> pd.DataFrame:
     """PRIMARY: daily top-k% capacity policy. SECONDARY: score threshold frozen
     on Sep-Oct for precision >= TARGET_PRECISION. Both fixed before test."""
     rows = []
@@ -448,21 +469,30 @@ def operating_policies(labels: Labels, final_preds: dict, thresholds: dict,
                          "policy": f"frozen thr for P>={config.TARGET_PRECISION} (from Sep-Oct)",
                          "threshold": thr,
                          **evaluate.policy_report(labels.y[s], final_preds[name][s] >= thr)})
-    return pd.DataFrame(rows)
+    return label(pd.DataFrame(rows), choice)
+
+
+CALIB_STUDY_SPLITS = ["test", "test_m11", "test_m12"]
 
 
 def calibration_study(results: pd.DataFrame) -> pd.DataFrame:
-    """Every calibration variant of both models on test, Nov and Dec."""
-    variants = [f"{m}_{v}" for m in MODELS
-                for v in ["raw", "platt", "isotonic",
-                          *[f"rolling{n}" for n in config.ROLLING_CALIB_SENSITIVITY]]]
-    sub = results[results.model.isin(variants) & results.split.isin(["test", "test_m11", "test_m12"])]
-    return sub.pivot_table(index="model", columns="split",
-                           values=["ece", "ece_equal_mass", "brier", "mean_pred"]).loc[variants]
+    """Every calibration variant of both models on test, Nov and Dec, with the
+    two reference models first. One row per variant, columns ``<metric>_<split>``.
+    Input: the labelled ``metrics_table``."""
+    variants = ["prior", "route_history"] + [
+        f"{m}_{v}" for m in MODELS
+        for v in ["raw", "platt", "isotonic", *[f"rolling{n}" for n in config.ROLLING_CALIB_SENSITIVITY]]]
+    metrics = ["ece", "ece_equal_mass", "brier", "mean_pred", "base_rate"]
+    sub = results[results.variant.isin(variants) & results.split.isin(CALIB_STUDY_SPLITS)]
+    wide = sub.pivot_table(index="variant", columns="split", values=metrics).loc[variants]
+    wide.columns = [f"{m}_{s}" for m, s in wide.columns]
+    keep = [f"{m}_{s}" for m in metrics for s in CALIB_STUDY_SPLITS]
+    lab = sub.drop_duplicates("variant").set_index("variant").loc[variants, ["model", "calibration"]]
+    return pd.concat([lab, wide[keep]], axis=1).rename_axis("variant").reset_index()
 
 
-def monthly_drift(labels: Labels, final_preds: dict,
-                  names=("logreg_raw", "xgboost_raw", "logreg_platt", "logreg_rolling28")
+def monthly_drift(labels: Labels, final_preds: dict, choice: dict,
+                  names=("logreg_raw", "xgboost_raw", "logreg_platt", f"logreg_rolling{ROLL}")
                   ) -> pd.DataFrame:
     """Mean predicted risk vs observed delay rate per calendar month."""
     splits = list(config.SPLITS)
@@ -477,14 +507,14 @@ def monthly_drift(labels: Labels, final_preds: dict,
         g = pd.DataFrame({"month": month, "y": y, "p": p}).groupby("month").agg(
             observed=("y", "mean"), predicted=("p", "mean"))
         out.append(g.assign(model=name).reset_index())
-    return pd.concat(out, ignore_index=True)
+    return label(pd.concat(out, ignore_index=True), choice)
 
 
 def bootstrap_compare(labels: Labels, final_preds: dict,
                       n_boot: int = config.N_BOOTSTRAP) -> dict:
     """Day-block bootstrap of test PR-AUC and ROC-AUC, XGBoost vs LogReg."""
-    pair = {"xgboost": final_preds["xgboost_cal"]["test"],
-            "logreg": final_preds["logreg_cal"]["test"]}
+    pair = {"xgboost": final_preds["xgboost_rule_selected"]["test"],
+            "logreg": final_preds["logreg_rule_selected"]["test"]}
     return {
         name: evaluate.summarize_bootstrap(
             evaluate.day_block_bootstrap(labels.dates["test"], labels.y["test"], pair, fn,
@@ -522,8 +552,18 @@ def ablation(P: Prepared, C: float, xgb_params: dict,
     """
     sets = ablation_sets(P)
     rows, preds, folds = [], {}, {}
+    # reference rows: the two baselines scored on the same folds / test set
+    base_cv = baseline_cv(P)
+    base_raw = baseline_preds(P)
+    for key in ("prior", "route_history"):
+        lab, cal = variant_label(key)
+        rows.append({"model": lab, "calibration": cal, "features": "(baseline)",
+                     "n_features": 0, "cv_pr_auc_mean": base_cv[key].mean(),
+                     "cv_pr_auc_std": base_cv[key].std(),
+                     "test_pr_auc": average_precision_score(P.ys["test"], base_raw[key]["test"]),
+                     "test_roc_auc": roc_auc_score(P.ys["test"], base_raw[key]["test"])})
     for model in MODELS:
-        for label, cols in sets.items():
+        for set_name, cols in sets.items():
             if model == "logreg":
                 cv = models.cv_score_features_logreg(P.Xs["train"], P.ys["train"],
                                                      P.labels.months["train"], cols, P.cat_cols, C)
@@ -535,8 +575,9 @@ def ablation(P: Prepared, C: float, xgb_params: dict,
                                               P.labels.months["train"], cols, xgb_params)
                 mdl = models.fit_xgb_final(P.Xs["train"][cols], P.ys["train"], xgb_params)
             p = mdl.predict_proba(P.Xs["test"][cols])[:, 1]
-            preds[model, label], folds[model, label] = p, cv
-            rows.append({"model": model, "features": label, "n_features": len(cols),
+            preds[model, set_name], folds[model, set_name] = p, cv
+            rows.append({"model": FAMILY[model], "calibration": "raw", "features": set_name,
+                         "n_features": len(cols),
                          "cv_pr_auc_mean": cv.mean(), "cv_pr_auc_std": cv.std(),
                          "test_pr_auc": average_precision_score(P.ys["test"], p),
                          "test_roc_auc": roc_auc_score(P.ys["test"], p)})
@@ -546,7 +587,8 @@ def ablation(P: Prepared, C: float, xgb_params: dict,
             gain = folds[model, cur] - folds[model, prev]
             ci = evaluate.bootstrap_diff_ci(P.labels.dates["test"], P.ys["test"],
                                             preds[model, cur], preds[model, prev], n_boot=n_boot)
-            steps.append({"model": model, "step": cur, "cv_gain_mean": gain.mean(),
+            steps.append({"model": FAMILY[model], "calibration": "raw", "step": cur,
+                          "cv_gain_mean": gain.mean(),
                           "cv_folds_improved": f"{int((gain > 0).sum())}/{len(gain)}",
                           "test_diff": ci["diff"], "test_diff_ci_lo": ci["ci_lo"],
                           "test_diff_ci_hi": ci["ci_hi"]})
@@ -607,15 +649,21 @@ def target_sensitivity(main: Prepared, main_raw: dict, C: float, xgb_params: dic
         y, d = P.ys["test"], P.labels.dates["test"]
         diff = evaluate.bootstrap_diff_ci(d, y, scores["xgboost"], scores["logreg"],
                                           n_boot=n_boot)
-        for m in MODELS:
-            b = evaluate.metric_bundle(y, scores[m])
-            pol = evaluate.policy_report(y, evaluate.flag_daily_top_share(d, scores[m]))
-            rows.append({"target": target, "model": m, "n_test": b["n"],
+        base_scores = baseline_preds(P)   # prior = this target's train base rate
+        entries = [(k, base_scores[k]["test"]) for k in ("prior", "route_history")]
+        entries += [(f"{m}_raw", scores[m]) for m in MODELS]
+        for key, sc in entries:
+            b = evaluate.metric_bundle(y, sc)
+            pol = evaluate.policy_report(y, evaluate.flag_daily_top_share(d, sc))
+            lab, cal = variant_label(key)
+            learned = key.endswith("_raw")
+            rows.append({"target": target, "model": lab, "calibration": cal, "n_test": b["n"],
                          "base_rate": b["base_rate"], "pr_auc": b["pr_auc"],
                          "roc_auc": b["roc_auc"], "brier": b["brier"], "ece": b["ece"],
                          "top10_precision": pol["precision"], "top10_recall": pol["recall"],
                          "top10_lift": pol["lift"],
-                         "xgb_minus_lr_pr_auc_ci": f"[{diff['ci_lo']:+.3f}, {diff['ci_hi']:+.3f}]"})
+                         "xgb_minus_lr_pr_auc_ci":
+                             f"[{diff['ci_lo']:+.3f}, {diff['ci_hi']:+.3f}]" if learned else ""})
     return pd.DataFrame(rows)
 
 
@@ -665,28 +713,28 @@ def load_predictions(path=None) -> tuple[Labels, dict]:
     return Labels.from_predictions(df), raw
 
 
-def evaluation_figures(labels: Labels, final_preds: dict, drift_tbl: pd.DataFrame,
+def evaluation_figures(labels: Labels, final_preds: dict, choice: dict, drift_tbl: pd.DataFrame,
                        gain: pd.Series, perm: pd.DataFrame, abl: pd.DataFrame,
                        psi: pd.DataFrame) -> dict:
     """All report figures for the evaluation stage, keyed by file name."""
     yt = labels.y["test"]
     final = config.FINAL_MODEL
-    figs = {"pr_roc_test": plots.pr_roc_curves(yt, {
-        "LogReg": final_preds["logreg_cal"]["test"],
-        "XGBoost": final_preds["xgboost_cal"]["test"],
-        "Route history": final_preds["route_history"]["test"]}, " - test Nov-Dec")}
-    for m, label in [("xgboost", "XGBoost"), ("logreg", "LogReg")]:
-        figs[f"reliability_{m}_test"] = plots.reliability_diagram(yt, {
-            f"{label} raw": final_preds[f"{m}_raw"]["test"],
-            f"{label} Platt (static)": final_preds[f"{m}_platt"]["test"],
-            f"{label} rolling Platt {config.ROLLING_CALIB_DAYS}d":
-                final_preds[f"{m}_rolling{config.ROLLING_CALIB_DAYS}"]["test"]},
-            f"{label} reliability - test")
-    figs["monthly_drift_final"] = plots.monthly_drift(drift_tbl[drift_tbl.model == f"{final}_raw"])
+    curves = ["logreg_rule_selected", "xgboost_rule_selected", "route_history"]
+    figs = {"pr_roc_test": plots.pr_roc_curves(
+        yt, {variant_label(k, choice)[0]: final_preds[k]["test"] for k in curves},
+        " - test Nov-Dec")}
+    for m in MODELS:
+        keys = [f"{m}_raw", f"{m}_platt", f"{m}_rolling{ROLL}", "route_history"]
+        figs[f"reliability_{m}_test"] = plots.reliability_diagram(
+            yt, {variant_label(k, choice)[0]: final_preds[k]["test"] for k in keys},
+            f"{FAMILY[m]} reliability - test")
+    figs["monthly_drift_final"] = plots.monthly_drift(
+        drift_tbl[drift_tbl.variant == f"{final}_raw"],
+        f"{FAMILY[final]} (raw): predicted vs observed delay rate by month")
     top = gain.head(20)
     figs["xgb_gain_top20"] = plots.hbar(top.to_numpy(), top.index.tolist(),
                                         "XGBoost top-20 features (gain)", "Average gain")
-    pf = perm[perm.model == final]
+    pf = perm[perm.model == FAMILY[final]]
     figs["perm_importance_groups"] = plots.hbar(
         pf["pr_auc_drop"].to_numpy(), pf["group"].tolist(),
         f"Grouped permutation importance, {final} (Sep-Oct)", "Drop in PR-AUC")

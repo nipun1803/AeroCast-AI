@@ -174,11 +174,20 @@ def oracle_recall_at_precision(y, p, target: float = config.TARGET_PRECISION) ->
     return float(rec[ok].max()) if ok.any() else 0.0
 
 
-def flag_daily_top_share(dates, p, share: float = config.DAILY_FLAG_SHARE) -> np.ndarray:
-    """Capacity policy: flag the ``share`` highest-risk flights of each day."""
-    s = pd.Series(np.asarray(p))
-    pct = s.groupby(pd.Series(np.asarray(dates))).rank(pct=True, method="first")
-    return (pct > 1 - share).to_numpy()
+def flag_daily_top_share(dates, p, share: float = config.DAILY_FLAG_SHARE,
+                         seed: int = config.SEED) -> np.ndarray:
+    """Capacity policy: flag the ``share`` highest-risk flights of each day.
+
+    Exact ties are broken at random (seeded), not by row order: rows are in
+    departure order, so an order-based tie-break would let an uninformative
+    (constant) score pick the day's latest flights and look skilful.
+    """
+    p, dates = np.asarray(p), np.asarray(dates)
+    order = np.random.default_rng(seed).permutation(len(p))
+    pct = pd.Series(p[order]).groupby(pd.Series(dates[order])).rank(pct=True, method="first")
+    flagged = np.empty(len(p), dtype=bool)
+    flagged[order] = (pct > 1 - share).to_numpy()
+    return flagged
 
 
 def policy_report(y, flagged) -> dict:

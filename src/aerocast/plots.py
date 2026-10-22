@@ -50,7 +50,6 @@ plt.rcParams.update(
 def save(fig, name: str):
     config.FIGURES_DIR.mkdir(parents=True, exist_ok=True)
     fig.savefig(config.FIGURES_DIR / f"{name}.png")
-    fig.savefig(config.FIGURES_DIR / f"{name}.pdf")  # vector for LaTeX
     plt.close(fig)
 
 
@@ -62,12 +61,12 @@ def pr_roc_curves(y, preds: dict[str, np.ndarray], title_suffix=""):
         fpr, tpr, _ = roc_curve(y, p)
         a2.plot(fpr, tpr, color=c, label=name)
     base = float(np.mean(y))
-    a1.axhline(base, color=REFERENCE, lw=1, ls="--", label=f"base rate {base:.2f}")
+    a1.axhline(base, color=REFERENCE, lw=1, ls="--", label=f"Prior (base rate {base:.2f})")
     a1.axhline(config.TARGET_PRECISION, color=REFERENCE, lw=1, ls=":",
                label=f"target precision {config.TARGET_PRECISION:.2f}")
     a1.set(xlabel="Recall", ylabel="Precision", title=f"Precision-recall{title_suffix}",
            xlim=(0, 1), ylim=(0, 1))
-    a2.plot([0, 1], [0, 1], color=REFERENCE, lw=1, ls="--")
+    a2.plot([0, 1], [0, 1], color=REFERENCE, lw=1, ls="--", label="Prior (chance)")
     a2.set(xlabel="False positive rate", ylabel="True positive rate",
            title=f"ROC{title_suffix}", xlim=(0, 1), ylim=(0, 1))
     a1.legend(loc="upper right")
@@ -81,14 +80,17 @@ def reliability_diagram(y, preds: dict[str, np.ndarray], title="Reliability (tes
         2, 1, figsize=(4.4, 4.8), sharex=True, gridspec_kw={"height_ratios": [3, 1]}
     )
     ax.plot([0, 1], [0, 1], color=REFERENCE, lw=1, ls="--", label="perfect")
-    for (name, p), c in zip(preds.items(), SERIES):
+    learned = iter(SERIES)
+    for name, p in preds.items():
+        ref = name.startswith("Route history")      # reference model: grey, dashed
+        c, ls = (REFERENCE, "--") if ref else (next(learned), "-")
         t = reliability_table(y, p)
         t = t[t["n"] >= 30]
-        ax.plot(t["mean_pred"], t["frac_pos"], color=c, marker="o", ms=4, label=name)
-        axh.hist(p, bins=30, range=(0, 1), histtype="step", color=c, lw=1.5)
+        ax.plot(t["mean_pred"], t["frac_pos"], color=c, ls=ls, marker="o", ms=4, label=name)
+        axh.hist(p, bins=30, range=(0, 1), histtype="step", color=c, ls=ls, lw=1.5)
     ax.set(ylabel="Observed delay rate", title=title, xlim=(0, 1), ylim=(0, 1))
     axh.set(xlabel="Predicted probability", ylabel="Count")
-    ax.legend(loc="upper left")
+    ax.legend(loc="upper left", fontsize=7)
     fig.tight_layout()
     return fig
 
@@ -254,19 +256,23 @@ def tree_count_curve(curve, cv_trees: int):
 # ---------------------------------------------------------------------------
 def ablation_bars(abl):
     """Rolling-CV PR-AUC per cumulative feature set, LogReg vs XGBoost."""
-    sets = list(dict.fromkeys(abl["features"]))
+    sets = list(dict.fromkeys(abl[abl.model == "LogReg"]["features"]))
     y = np.arange(len(sets))
     fig, ax = plt.subplots(figsize=(6.5, 0.5 * len(sets) + 1.2))
-    for k, (model, label) in enumerate([("logreg", "LogReg"), ("xgboost", "XGBoost")]):
+    for k, (model, label) in enumerate([("LogReg", "LogReg (raw)"), ("XGBoost", "XGBoost (raw)")]):
         sub = abl[abl.model == model].set_index("features").loc[sets]
         ax.barh(y + (k - 0.5) * 0.38, sub["cv_pr_auc_mean"], height=0.36, color=SERIES[k],
                 xerr=sub["cv_pr_auc_std"] / 2, error_kw={"ecolor": REFERENCE, "lw": 1},
                 label=label)
     ax.set(yticks=y, yticklabels=sets, xlabel="Rolling-CV PR-AUC (mean, bar = ±½ sd)",
            title="Feature-family ablation (CV, training window)", xlim=(0, 0.6))
+    for base, ls in [("Prior (base rate)", ":"), ("Route history", "--")]:
+        ref = abl[abl.model == base]
+        if len(ref):
+            ax.axvline(ref["cv_pr_auc_mean"].iloc[0], color=REFERENCE, lw=1, ls=ls, label=base)
     ax.invert_yaxis()
     ax.grid(axis="y", visible=False)
-    ax.legend(loc="lower right", framealpha=1, frameon=True, edgecolor=GRID)
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.16), ncol=4, fontsize=7)
     fig.tight_layout()
     return fig
 

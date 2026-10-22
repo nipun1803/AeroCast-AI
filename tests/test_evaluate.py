@@ -112,3 +112,18 @@ def test_rolling_platt_is_causal():
     first = dates == target[0]   # its fit window ends with outcomes available on target[0]
     assert np.allclose(q1[first], q2[first])
     assert np.isnan(q1[dates < target[0]]).all()
+
+
+def test_daily_policy_ties_are_not_broken_by_row_order():
+    """A constant score must behave like random flagging: later rows of each day
+    are more often positive here, but an order-based tie-break would pick them."""
+    n_days, per_day = 200, 50
+    dates = np.repeat(np.arange(n_days), per_day)
+    position = np.tile(np.arange(per_day), n_days)
+    y = (np.random.default_rng(0).random(len(dates)) < 0.1 + 0.5 * position / per_day).astype(int)
+    flagged = evaluate.flag_daily_top_share(dates, np.full(len(dates), 0.3), share=0.1)
+    assert abs(flagged.mean() - 0.1) < 0.005
+    lift = y[flagged].mean() / y.mean()
+    assert abs(lift - 1.0) < 0.1          # order-based ties would give about 1.6
+    assert np.array_equal(flagged, evaluate.flag_daily_top_share(
+        dates, np.full(len(dates), 0.3), share=0.1))   # reproducible

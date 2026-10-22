@@ -68,10 +68,13 @@ CV_VAL_MONTHS = [5, 6, 7, 8]
 # --- Feature hyper-parameters (tuned by rolling CV, see pipeline.tune_history)
 # Pseudo-count strength of the shrinkage toward the network prior, and the
 # long trailing window of the entity-level history rates. Rule: the
-# (m, window) pair with the highest mean rolling-CV PR-AUC of LogReg
-# (C = 0.001); the pipeline fails loudly if these values are not that pair.
-# Was m = 20 / 28 days (hand-picked); CV picked m = 5 / 14 days (+0.003 mean
-# PR-AUC, 3 of 4 folds) -- a small gain relative to the fold spread.
+# (m, window) pair with the highest mean rolling-CV PR-AUC of LogReg, tuned
+# JOINTLY with C (each pair is scored at its own best C of models.LOGREG_CS);
+# the pipeline fails loudly if these values are not that pair.
+# Was m = 20 / 28 days (hand-picked); CV picked m = 5 / 14 days -- a small gain
+# relative to the fold spread. An earlier version scored the grid at a fixed
+# C = 0.001; re-tuning jointly with C selects the same pair (and C = 0.1), so
+# the decision is unchanged (results/history_tuning.csv).
 SMOOTHING_M = 5
 LONG_WINDOW = 14
 SMOOTHING_M_GRID = [5, 20, 50]

@@ -10,7 +10,7 @@ Every stage lives in ``aerocast.pipeline``; this script only orchestrates and
 writes artefacts. Notebooks 01-04 call the same functions.
 
 Usage:  python scripts/run_phase1.py [--quick]
-Outputs: results/*.json|csv|csv.gz, figures/*.png|pdf
+Outputs: results/*.json|csv|csv.gz, figures/*.png
 """
 from __future__ import annotations
 
@@ -47,7 +47,8 @@ def main(quick: bool = False):
         tuning.to_csv(R / "history_tuning.csv", index=False)
         history_choice = pipeline.check_history_choice(tuning)
     else:
-        history_choice = {"smoothing_m": config.SMOOTHING_M, "long_window": config.LONG_WINDOW}
+        history_choice = {"smoothing_m": config.SMOOTHING_M, "long_window": config.LONG_WINDOW,
+                          "C": None}
 
     log("features (full schedule incl. cancelled flights; decision clock "
         f"{config.DECISION_HOUR}:00 on D-1)")
@@ -71,7 +72,13 @@ def main(quick: bool = False):
 
     cv = pipeline.cv_summary(lr, xgb, P)
     final_model = pipeline.select_final_model(cv)
+    pipeline.cv_table(cv).to_csv(R / "cv_summary.csv", index=False)
+    cv_pair = pipeline.paired_cv_difference(cv)
     log(f"final model (CV rule, fixed before test): {final_model}  {cv}")
+    log(f"paired CV difference LogReg - XGBoost: {cv_pair}")
+    pipeline.single_month_tree_curve(P, xgb.params).to_csv(R / "single_month_tree_curve.csv",
+                                                           index=False)
+    pipeline.mean_scores(raw_preds).to_csv(R / "mean_scores.csv", index=False)
 
     pipeline.predictions_frame(P, raw_preds).to_csv(R / "predictions.csv.gz", index=False)
 
@@ -83,17 +90,19 @@ def main(quick: bool = False):
     thresholds = pipeline.frozen_thresholds(P.labels, final_preds)
 
     log("evaluating on Nov-Dec test")
-    results = pipeline.metrics_table(P.labels, final_preds, thresholds)
+    results = pipeline.metrics_table(P.labels, final_preds, thresholds, calib_choice)
     results.to_csv(R / "metrics_all.csv", index=False)
     test_tbl = pipeline.headline_table(results)
-    log("\n" + test_tbl[pipeline.SHOW_COLS].round(4).to_string())
-    pipeline.calibration_study(results).to_csv(R / "calibration_study.csv")
+    test_tbl.to_csv(R / "headline_test.csv", index=False)
+    pipeline.headline_by_month(results).to_csv(R / "headline_by_month.csv", index=False)
+    log("\n" + test_tbl[["model", "calibration", *pipeline.SHOW_COLS]].round(4).to_string())
+    pipeline.calibration_study(results).to_csv(R / "calibration_study.csv", index=False)
 
-    policies = pipeline.operating_policies(P.labels, final_preds, thresholds)
+    policies = pipeline.operating_policies(P.labels, final_preds, thresholds, calib_choice)
     policies.to_csv(R / "operating_policies.csv", index=False)
     log("\n" + policies.round(3).to_string())
 
-    drift_tbl = pipeline.monthly_drift(P.labels, final_preds)
+    drift_tbl = pipeline.monthly_drift(P.labels, final_preds, calib_choice)
     drift_tbl.to_csv(R / "monthly_calibration_drift.csv", index=False)
 
     log("day-block bootstrap on test")
@@ -112,7 +121,8 @@ def main(quick: bool = False):
 
     log("grouped permutation importance (Sep-Oct)")
     reps = 3 if quick else 5
-    perm = pd.concat([pipeline.grouped_permutation_importance(P, mdl, reps).assign(model=name)
+    perm = pd.concat([pipeline.grouped_permutation_importance(P, mdl, reps)
+                      .assign(model=pipeline.FAMILY[name], calibration="raw")
                       for name, mdl in [("logreg", lr.model), ("xgboost", xgb.model)]],
                      ignore_index=True)
     perm.to_csv(R / "permutation_importance_groups.csv", index=False)
@@ -131,12 +141,14 @@ def main(quick: bool = False):
     adv_imp.to_csv(R / "adversarial_importance.csv")
 
     log("figures")
-    for name, fig in pipeline.evaluation_figures(P.labels, final_preds, drift_tbl, gain, perm,
-                                                 abl, psi).items():
+    for name, fig in pipeline.evaluation_figures(P.labels, final_preds, calib_choice, drift_tbl,
+                                                 gain, perm, abl, psi).items():
         plots.save(fig, name)
 
+    final_variant = f"{final_model}_rule_selected"
+    final_label, final_calibration = pipeline.variant_label(final_variant, calib_choice)
     primary = policies[(policies.role == "primary") & (policies.split == "test")
-                       & (policies.model == f"{final_model}_cal")].iloc[0]
+                       & (policies.variant == final_variant)].iloc[0]
     summary = {
         "decision_time": f"{config.DECISION_HOUR}:00 NYC on D-1; outcomes enter history once known",
         "target": f"arr_delay >= {config.DELAY_THRESHOLD_MIN} min; cancelled/diverted dropped",
@@ -145,8 +157,15 @@ def main(quick: bool = False):
         "history_settings": history_choice,
         "n_features": len(P.feat_cols),
         "feature_groups": {k: len(v) for k, v in P.groups.items()},
-        "final_model": {"model": final_model, "rule": "higher mean rolling-CV PR-AUC",
+        "final_model": {"model": final_model, "variant": final_label,
+                        "calibration": final_calibration,
+                        "rule": "higher mean rolling-CV PR-AUC, each model scored as deployed",
                         "fixed_before_test": True},
+        "model_comparison_note": (
+            "LogReg and XGBoost are not statistically distinguished: rolling-CV fold sd is "
+            "about 0.07 for both, and the test day-block bootstrap CI of XGBoost - LogReg "
+            "includes 0. The final-model choice rests on the rule declared before test."),
+        "cv_paired_logreg_minus_xgboost": cv_pair,
         "xgb_params": xgb.params,
         "xgb_cv_std": cv["xgboost"]["std"],
         "logreg_C": lr.C,
@@ -156,9 +175,11 @@ def main(quick: bool = False):
         "calibrator_selected": calib_choice,
         "rolling_calibration_days": config.ROLLING_CALIB_DAYS,
         "primary_policy_test": {"policy": primary["policy"], "model": primary["model"],
+                                "calibration": primary["calibration"],
                                 "precision": primary["precision"], "recall": primary["recall"],
                                 "lift": primary["lift"], "flag_rate": primary["flag_rate"]},
-        "test": test_tbl[pipeline.SHOW_COLS].reset_index().to_dict(orient="records"),
+        "test": test_tbl[["model", "calibration", "variant", *pipeline.SHOW_COLS]]
+        .to_dict(orient="records"),
         "oracle_metric_note": ("oracle_recall@p tunes the threshold on the test labels: "
                                "curve metric for model comparison only"),
         "bootstrap_test": boot,
