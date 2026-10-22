@@ -263,10 +263,10 @@ def ablation_bars(abl):
                 xerr=sub["cv_pr_auc_std"] / 2, error_kw={"ecolor": REFERENCE, "lw": 1},
                 label=label)
     ax.set(yticks=y, yticklabels=sets, xlabel="Rolling-CV PR-AUC (mean, bar = ±½ sd)",
-           title="Feature-family ablation (CV, training window)")
+           title="Feature-family ablation (CV, training window)", xlim=(0, 0.6))
     ax.invert_yaxis()
     ax.grid(axis="y", visible=False)
-    ax.legend(loc="lower right")
+    ax.legend(loc="lower right", framealpha=1, frameon=True, edgecolor=GRID)
     fig.tight_layout()
     return fig
 

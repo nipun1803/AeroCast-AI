@@ -1,6 +1,6 @@
 # AeroCast-AI — Day-Ahead Flight Delay Risk
 
-**AML Project 21 · Phase 1 (Machine Learning)**: predicting whether a flight will arrive ≥ 15 min late, using only information available **the evening before departure**.
+**AML Project 21 · Phase 1 (Machine Learning)**: predicting whether a flight will arrive ≥ 15 min late, using only information available at **20:00 on the evening before departure**.
 
 Dataset: [`nycflights13`](https://www.kaggle.com/datasets/mahoora00135/flights): 336,776 departures from EWR, JFK and LGA in 2013.
 
@@ -8,73 +8,109 @@ Dataset: [`nycflights13`](https://www.kaggle.com/datasets/mahoora00135/flights):
 
 | Choice | Decision | Why |
 |---|---|---|
-| Decision time | **End of day D-1** (day-ahead) | Clean leakage boundary: features may use the published schedule for D and outcomes from dates < D only |
+| Decision time | **20:00 NYC on D-1** (`config.DECISION_HOUR`) | An outcome feeds day D's features only if it was **known** by then: arrival delay at the actual gate arrival (converted to the NYC clock), cancellation at the scheduled departure |
 | Target | `arr_delay ≥ 15` (BTS on-time definition) | 24.5 % positive rate |
-| Cancelled / diverted | Dropped from the target (2.8 %) | Kept in *schedule* counts, since at D-1 nobody knows a flight will be cancelled |
-| Split | Chronological: **train** Jan 8–Aug · **calib** Sep–Oct · **test** Nov–Dec | No shuffling; test touched once |
-| Model selection | **Rolling-origin CV** inside train (validate May, Jun, Jul, Aug) | A single validation month (Sep, the calmest month of the year) proved unreliable |
+| Cancelled / diverted | Dropped from the target (2.8 %) | Kept in *schedule* counts. Counting them as delayed is a reported sensitivity analysis |
+| Split | Chronological: **train** Jan 8–Aug · **calib** Sep–Oct · **test** Nov–Dec | No shuffling |
+| Model selection | **Rolling-origin CV** inside train (validate May, Jun, Jul, Aug) | A single validation month (Sep, the calmest of the year) proved unreliable |
+| Final model | **Logistic regression** (`config.FINAL_MODEL`), fixed before test | Higher rolling-CV PR-AUC *as deployed*: 0.4705 vs XGBoost 0.4450 |
 
 ## Features (45, `src/aerocast/features.py`)
 
-| Family | Examples | Known at D-1 because… |
+| Family | Examples | Known at the decision time because… |
 |---|---|---|
-| IDs | carrier, origin, dest (native categorical / one-hot) | schedule |
-| Schedule | cyclic dep/arr time-of-day, cyclic day-of-week, days-to-holiday, log distance | schedule |
-| Congestion | scheduled departures in the same origin-hour / ±1 h bank / day; aircraft leg index | schedule (incl. later-cancelled flights) |
-| Entity history | smoothed delay rate & volume for route, carrier-route, carrier, dest, origin×hour, flight number, tail number (7/28-day windows) | outcomes of dates ≤ D-1 |
-| Day-level history | yesterday's network / origin delay rate, cancellation rate, mean delay | outcomes of D-1 |
+| IDs | carrier, origin, dest | timetable |
+| Schedule | cyclic dep/arr time-of-day and day-of-week, days to the nearest US federal holiday, log distance | timetable |
+| Congestion | scheduled departures in the same origin-hour / ±1 h bank / day; aircraft leg index | timetable (incl. later-cancelled flights) |
+| Entity history | smoothed delay rate and volume for route, carrier-route, carrier, dest, origin × hour, flight number, tail number (7/14-day windows) | outcomes known by 20:00 on D-1 |
+| Day-level history | last-24 h network / origin delay rate, cancellation rate, mean delay | outcomes known by 20:00 on D-1 |
 
-History rates are computed on daily totals, then rolled over the window, then **shifted by one day**, and shrunk toward a past-only network prior: `(late + m·prior) / (flights + m)`.
-`tests/test_no_leakage.py` scrambles all outcomes from a cutoff date onward and asserts every feature up to that date is **bit-for-bit unchanged**.
+* **Decision clock:** each outcome gets an *availability date* (`data.available_date`), and history windows roll over availability dates. 31 % of D-1 arrivals land after 20:00 (and are twice as often late), so they first count for D+1.
+* **Shrinkage:** rates are pulled toward a past-only network prior, `(late + m·prior)/(flights + m)`. m = 5 and the 14-day window were chosen by rolling CV (`results/history_tuning.csv`).
+* **Leakage tests** (`tests/test_no_leakage.py`): (a) scrambling all outcomes from a cutoff date leaves earlier features bit-for-bit unchanged; (b) scrambling D-1 arrivals after 20:00 leaves day D unchanged, while scrambling those before 20:00 changes it (positive control).
 
 ## Results (test = Nov–Dec 2013, 53,991 flights, base rate 0.258)
 
-| Model | PR-AUC | ROC-AUC | Brier | ECE | Recall @ precision ≥ 0.40 |
-|---|---|---|---|---|---|
-| Prior (base rate) | 0.258 | 0.500 | 0.192 | 0.007 | — |
-| Route-history heuristic | 0.340 | 0.615 | 0.188 | 0.040 | 0.095 |
-| **Logistic regression** (C = 0.001, Platt) | **0.405** | **0.666** | 0.184 | 0.072 | **0.484** |
-| **XGBoost** (depth 3, 294 trees, raw) | 0.392 | 0.664 | **0.181** | **0.036** | 0.433 |
+`_cal` = the calibration chosen by the static rule fixed in advance (below). PR-AUC is average precision.
 
-Rolling-CV PR-AUC: LogReg 0.484 ± 0.070, XGBoost 0.470 ± 0.074.
+| Model | PR-AUC | ROC-AUC | Brier | ECE | ECE (equal-mass) |
+|---|---|---|---|---|---|
+| Prior (base rate) | 0.258 | 0.500 | 0.192 | 0.007 | 0.084 |
+| Route-history heuristic | 0.353 | 0.621 | 0.187 | 0.037 | 0.038 |
+| **Logistic regression (final)**: C = 0.1, Platt by rule | 0.394 | 0.654 | 0.187 | 0.082 | 0.082 |
+| ↳ same model, causal rolling Platt (28 d) | 0.394 | 0.654 | 0.181 | **0.027** | 0.027 |
+| XGBoost: depth 2, 143 trees, raw by rule | 0.407 | 0.662 | 0.180 | 0.027 | 0.027 |
+
+**Primary operating policy (fixed before test): flag the riskiest 10 % of each day's flights.** Final model on test: **precision 0.444, recall 0.173, lift 1.72×** over random flagging.
+
+* Rolling-CV PR-AUC as deployed: LogReg 0.4705 ± 0.071, XGBoost 0.4450 ± 0.073. XGBoost's search score with in-fold early stopping (0.4754) is optimistic and not used for selection.
+* Test difference XGB − LR in PR-AUC: day-block bootstrap 95 % CI **[−0.010, +0.041]**, so not significant.
+* `oracle_recall@p` (in `results/`) tunes the threshold on the test labels. It's a curve metric **for model comparison only**, not an operating result.
 
 ### Key findings
 
-1. **XGBoost ≈ Logistic Regression.** The day-block bootstrap 95 % CI for the PR-AUC difference (XGB − LR) is [−0.030, +0.008]. With hand-built day-ahead summaries, trees find little interaction structure to exploit. This is the gap motivating the learned-embedding model in Phase 2.
-2. **Time of day + entity history carry the signal.** In the ablation, entity history adds +0.05 test PR-AUC. Scheduled congestion adds nothing beyond time of day.
-3. **Day-level features act as a date identifier.** They take one value per day, so trees can memorise individual training days. They help in CV (bursty summer storms) but not on test.
-4. **Calibration does not survive the seasonal shift.** Post-hoc calibrators fit on calm Sep–Oct (15.7 % late) under-predict December (33.5 % late). Raw log-loss models are closer to calibrated. Calibration is a property of the model *and* the distribution (Guo et al. 2017; Ovadia et al. 2019).
-5. **Operating point.** A precision threshold frozen on Sep–Oct does not transfer, because precision moves with the base rate. A **daily top-10 % capacity policy** is rank-based and shift-robust: 44 % precision, 1.7× lift on test.
+1. **The decision-time leak was real.** Late-evening D-1 arrivals leaked into "yesterday" features. Fixing it costs about 0.018 rolling-CV PR-AUC. The 20:00 clock beats a 2-day lag by about 0.01 in all 4 folds.
+2. **LogReg ≈ XGBoost.** CV favours LogReg as deployed, and the test difference is not significant. Hand-built day-ahead summaries leave little interaction structure for trees. That's the gap the deep-learning phase targets.
+3. **Every feature family adds CV value for the final model** (congestion +0.021, entity history +0.020, day-level history +0.011). Entity history is confirmed on test (CI excludes 0). Month features don't help (CV).
+4. **Static calibration breaks under seasonal shift.** The rule adopts Platt for LogReg (Oct ECE −0.026), which then under-predicts December (33.5 % late). Causal rolling recalibration tracks the shift (test ECE about 0.025 for both models).
+5. **Robust to the target definition** (cancellations as delays): same conclusions, same policy lift.
+6. **Strong covariate shift**: adversarial AUC is 1.0 with history features and 0.56 with IDs only. This explains the calibration behaviour.
+
+## Development protocol (honest disclosure)
+
+The test window was meant to be touched once. These earlier diagnostics **displayed test metrics** before the design was frozen:
+1. the first single-September run;
+2. the month-feature comparison (the original justification, since withdrawn and re-justified by CV);
+3. feature-subset variants that printed test PR-AUC, which shaped the day-level hypothesis (now re-justified by CV and distinct-value analysis);
+4. the 0.50 → 0.40 precision-target change, decided on Sep–Oct but with test recall visible;
+5. calibration: test ECE of raw/Platt/isotonic was seen before any selection rule existed. The shift-aware Platt variant was scored on test, and the Sep→Oct rule and the 0.005 margin rule were introduced afterwards;
+6. in this review round, the full pipeline (including test) ran once while the final-model comparison still used XGBoost's optimistic in-fold early-stopping score. That was corrected for a CV-methodological reason, which reversed the choice to LogReg.
+
+Everything decided **without** test evidence: decision clock vs lag (CV), smoothing m and window (CV), C and the XGBoost configuration (CV), final model (CV as deployed), calibration rule outcome (Sep→Oct), rolling window N = 28 (a priori), daily top-10 % policy (a priori), precision target (Sep–Oct). The full list, with each re-justification, is in `notebooks/04_evaluation.ipynb` §0. **Small test differences should be read with caution.**
+
+## Assumptions
+
+- Tail-number (aircraft) assignment is known by 20:00 on D-1.
+- Holidays come from the **US federal** holiday calendar (`days_to_holiday`, capped at 14).
+- A cancellation is known by the flight's scheduled departure; an arrival outcome at the actual gate arrival.
+- Destination time zones are a fixed lookup table (`config.DEST_OFFSET_MIN`, re-derivable from the data and checked by a test), plus the 2013 DST rule (HNL, PHX, Puerto Rico and USVI don't observe DST).
+- **Single year**: each season and airport effect is observed once, and no out-of-year validation is possible.
 
 ## Repository layout
 
 ```text
-data/raw/flights.csv          dataset (git-ignored; see Setup)
+data/raw/flights.csv          dataset (git-ignored; download from Kaggle)
 src/aerocast/                 ALL logic lives here; script and notebooks only call it
-  config.py                   paths, target, splits, CV folds, operating policy
-  data.py                     loading, target, chronological split
-  eda.py                      data-quality audit, leakage audit table, EDA aggregations
-  features.py                 schedule / congestion / past-only history features
-  leakage.py                  scramble-future-outcomes leakage check
+  config.py                   paths, target, decision clock, time-zone table, splits, CV folds,
+                              selection rules (final model, calibration margin, rolling window), policy
+  data.py                     loading, target (+ variants), arrival on NYC clock, availability date, split
+  eda.py                      data-quality audit, leakage audit, EDA aggregations
+  features.py                 schedule / congestion / decision-clock history features
+  leakage.py                  future-scramble and decision-clock leakage checks
   models.py                   LogReg & XGBoost factories, rolling-origin CV
-  evaluate.py                 PR/ROC, ECE, calibrators, thresholds, day-block bootstrap
-  pipeline.py                 one function per pipeline stage (prepare -> train -> calibrate -> evaluate)
+  evaluate.py                 PR/ROC, ECE (equal-width & equal-mass), calibrators + margin rule,
+                              rolling Platt, thresholds, policies, day-block bootstrap
+  drift.py                    PSI and adversarial validation
+  pipeline.py                 one function per stage (prepare -> tune -> train -> calibrate -> evaluate)
   plots.py                    report figures (PNG + vector PDF for LaTeX)
 scripts/run_phase1.py         runs every stage, writes results/ + figures/ (source of truth for numbers)
 notebooks/                    one notebook per stage, kernel "Python (aerocast)"
-  01_eda.ipynb                data quality, leakage audit, target, delay patterns -> design decisions
-  02_feature_engineering.ipynb  past-only rule, feature groups, worked shift+smoothing example,
-                              inline leakage check, why no month feature / separate day-level group
-  03_model_training.ipynb     split, baselines, rolling-origin CV (LogReg, XGBoost), final fits;
+  01_eda.ipynb                data quality, leakage audit, delay patterns, congestion within hour,
+                              history multicollinearity -> design decisions
+  02_feature_engineering.ipynb  decision clock, feature groups, worked example, both leakage checks,
+                              CV tuning of m / window / clock, month and day-level evidence
+  03_model_training.ipynb     theory, rolling-origin CV for both models, final-model rule;
                               recomputes training and asserts it matches results/
-  04_evaluation.ipynb         calibration, test metrics, bootstrap, curves, drift, policies,
-                              ablation, importance; recomputed from results/predictions.csv.gz
-tests/test_no_leakage.py      leakage, split, CV-fold and smoothing guards
-results/                      metrics tables, CV logs, predictions.csv.gz, summary.json
+  04_evaluation.ipynb         development protocol, metric theory, calibration study, test metrics,
+                              bootstrap, policies, ablation (both models), importance, target
+                              sensitivity, covariate shift; recomputed from results/predictions.csv.gz
+tests/test_no_leakage.py      leakage, decision clock, time zones, splits, CV folds, smoothing
+tests/test_evaluate.py        ECE, thresholds, bootstrap, calibrators, daily policy, rolling Platt
+results/                      every table + predictions.csv.gz + summary.json (committed)
 figures/                      all figures used in the report
 ```
 
-Run order: `scripts/run_phase1.py` first (writes `results/`), then the notebooks in order. Notebooks 01–03 run standalone; 04 reads the script's artefacts.
+`results/predictions.csv.gz` (~6 MB) **is committed**: it's the audit trail behind every evaluation number, and it lets notebook 04 run without re-training.
 
 ## Setup & reproduce
 
@@ -84,18 +120,19 @@ python3.12 -m venv .venv            # or: uv venv --python 3.12 .venv
 .venv/bin/pip install -e .
 # place flights.csv in data/raw/
 
-.venv/bin/python -m pytest                  # leakage tests (~12 s)
-.venv/bin/python scripts/run_phase1.py      # full pipeline (~2 min; --quick for a smoke run)
+.venv/bin/python -m pytest                  # 24 tests (~30 s)
+.venv/bin/python scripts/run_phase1.py      # full pipeline (~10 min; --quick for a smoke run)
 .venv/bin/python -m ipykernel install --sys-prefix --name aerocast
 .venv/bin/jupyter lab notebooks/            # select kernel "Python (aerocast)"
 ```
 
-All randomness is seeded (`config.SEED = 42`).
+Run order: the script first (it writes `results/`), then notebooks 01 → 04. Notebooks 01–03 run standalone; 04 reads the script's artefacts. All randomness is seeded (`config.SEED = 42`).
 
-> **macOS note:** if `import aerocast` fails inside the venv, macOS may have flagged the `.pth` files as hidden (common in iCloud-synced folders), and Python skips hidden `.pth` files. Fix with `chflags nohidden .venv/lib/python3.12/site-packages/*.pth`. The notebooks add `src/` to `sys.path` themselves, so they work either way.
+> **macOS note:** if `import aerocast` fails inside the venv, macOS may have flagged the `.pth` files as hidden (common in iCloud-synced folders), and Python skips hidden `.pth` files. Fix with `chflags nohidden .venv/lib/python3.12/site-packages/*.pth`. The script and notebooks add `src/` to `sys.path` themselves, so they work either way.
 
 ## Limitations
 
-- One year and three origins: seasonality and airport effects are each observed only once.
-- No weather. Only outbound NYC legs are visible, so aircraft rotation is partial (1.3 NYC departures per tail per day).
-- Assumes `tailnum` assignment is known day-ahead.
+- One year and three origins (see Assumptions).
+- No weather data, the main missing driver of day-to-day delays.
+- Only outbound NYC legs are visible, so aircraft rotation is partial (about 1.3 NYC departures per aircraft per day).
+- The test window was not perfectly clean (see Development protocol).
