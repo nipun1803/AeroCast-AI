@@ -125,6 +125,32 @@ def available_date(known_dt: pd.Series, decision_hour: int = config.DECISION_HOU
     return shifted.dt.ceil("D") + pd.Timedelta(days=1)
 
 
+def outcomes_available_by(avail_dates, target_date) -> np.ndarray:
+    """Labels known by the D-1 decision clock for ``target_date``.
+
+    Availability dates already encode the clock, including arrivals after
+    20:00. Unknown availability (NaT) is excluded, never treated as known.
+    """
+    avail = pd.to_datetime(pd.Series(avail_dates)).to_numpy(dtype="datetime64[ns]")
+    return avail <= pd.Timestamp(target_date).normalize().to_datetime64()
+
+
+def target_available_date(df: pd.DataFrame, variant: str = "arr15",
+                          decision_hour: int = config.DECISION_HOUR) -> pd.Series:
+    """Availability of the selected target, including cancellation sensitivity.
+
+    Cancellation labels use the assumed departure-time notification. Diversion
+    labels use gate arrival when recorded; missing times remain unknown and
+    cannot enter a fit. Scoring can still use their eventual labels offline.
+    """
+    known = df["arr_known_dt"]
+    if variant == "arr15_or_cancel":
+        known = known.where(df["is_cancelled"].eq(0), df["dep_known_dt"])
+    elif variant != "arr15":
+        raise ValueError(variant)
+    return available_date(known, decision_hour)
+
+
 # ---------------------------------------------------------------------------
 # Split
 # ---------------------------------------------------------------------------
