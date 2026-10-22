@@ -20,10 +20,10 @@ Phase 1 (machine learning only): day-ahead prediction of `arr_delay ≥ 15 min` 
 |---|---|---|---|---|---|---|---|
 | Prior (base rate) | none | 0.258 | 0.500 | 0.192 | 0.007 | 0.084 | 0.000 |
 | Route history | none (smoothed rate) | 0.353 | 0.621 | 0.187 | 0.037 | 0.038 | 0.244 |
-| LogReg (raw) | raw | 0.394 | 0.654 | 0.181 | 0.019 | 0.022 | 0.430 |
-| LogReg (Platt, rule-selected) | Platt (rule-selected) | 0.394 | 0.654 | 0.187 | 0.082 | 0.082 | 0.430 |
-| LogReg (rolling Platt 28d) | rolling Platt 28d (causal) | 0.392 | 0.657 | 0.181 | 0.027 | 0.026 | 0.432 |
-| XGBoost (raw, rule-selected) | raw (rule-selected) | 0.407 | 0.662 | 0.180 | 0.027 | 0.027 | 0.474 |
-| XGBoost (rolling Platt 28d) | rolling Platt 28d (causal) | 0.396 | 0.659 | 0.180 | 0.024 | 0.023 | 0.416 |
+| LogReg (raw) | raw | 0.394 | 0.654 | 0.181 | 0.019 | 0.022 | 0.431 |
+| LogReg (Platt, rule-selected) | Platt (rule-selected) | 0.394 | 0.654 | 0.187 | 0.082 | 0.082 | 0.431 |
+| LogReg (rolling Platt 28d) | rolling Platt 28d (causal) | 0.392 | 0.657 | 0.181 | 0.027 | 0.027 | 0.431 |
+| XGBoost (raw, rule-selected) | raw (rule-selected) | 0.404 | 0.662 | 0.180 | 0.027 | 0.026 | 0.462 |
+| XGBoost (rolling Platt 28d) | rolling Platt 28d (causal) | 0.394 | 0.659 | 0.181 | 0.026 | 0.025 | 0.417 |
 
-Final model: **LogReg (Platt, rule-selected)**, chosen by the CV rule declared before test. LogReg and XGBoost are **not statistically distinguished** (CV 0.4705 vs 0.4450 with fold sd about 0.07; test bootstrap CI of the difference [-0.010, +0.041] includes 0).
+Final model: **LogReg (Platt, rule-selected)**. LogReg has the higher development CV mean (0.4715 versus 0.4474), so it is selected by the declared rule. The test AP-difference interval (XGBoost − LogReg, [-0.013, +0.037]) includes zero: it does not establish a test-performance difference, equivalence, or noninferiority. Test exposure during development remains disclosed.
