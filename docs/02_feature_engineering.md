@@ -58,25 +58,25 @@ Rolling-CV PR-AUC of LogReg at the configured (m, window), C tuned per row:
 
 | decision_hour | best_C | cv_pr_auc_mean | cv_pr_auc_std | meaning |
 |---|---|---|---|---|
-| 20 | 0.1000 | 0.4705 | 0.0706 | 20:00 on D-1 (used) |
-| 0 | 0.0030 | 0.4587 | 0.0730 | 00:00 on D-1 (about a 2-day lag) |
-| 24 | 0.0100 | 0.4812 | 0.0723 | 24:00 on D-1 (every D-1 arrival counts: leaky) |
+| 20 | 0.1000 | 0.4715 | 0.0710 | 20:00 on D-1 (used) |
+| 0 | 0.0030 | 0.4589 | 0.0741 | 00:00 on D-1 (approximately a two-day lag) |
+| 24 | 0.0100 | 0.4814 | 0.0721 | 24:00 on D-1 (later deadline; unavailable at 20:00) |
 
-The 20:00 clock beats a 2-day lag by 0.012 (better in 4/4 folds). Counting every D-1 arrival would be 0.011 better in CV but uses outcomes not yet known: **that is the size of the leak the clock removes.**
+The 20:00 clock scores 0.4715, compared with 0.4589 at 00:00 (approximately a two-day lag) and 0.4814 at 24:00. The 24:00 scenario permits outcomes unavailable at the chosen 20:00 deadline. These scenarios move fitting and selection cutoffs as well as feature-history cutoffs, so their score differences do not isolate a feature-leakage effect.
 
 ## Smoothing m and window, tuned jointly with C (notebook §6)
 
 | smoothing_m | long_window | best_C | cv_pr_auc_mean | cv_pr_auc_std | cv_pr_auc_mean_C0.001 |
 |---|---|---|---|---|---|
-| 5 | 14 | 0.1000 | 0.4705 | 0.0706 | 0.4684 |
-| 5 | 28 | 0.0010 | 0.4667 | 0.0643 | 0.4667 |
-| 5 | 56 | 0.0100 | 0.4678 | 0.0686 | 0.4662 |
-| 20 | 14 | 0.0100 | 0.4689 | 0.0709 | 0.4669 |
-| 20 | 28 | 0.0010 | 0.4657 | 0.0640 | 0.4657 |
-| 20 | 56 | 0.0100 | 0.4665 | 0.0686 | 0.4648 |
-| 50 | 14 | 0.0100 | 0.4648 | 0.0719 | 0.4631 |
-| 50 | 28 | 0.0010 | 0.4631 | 0.0641 | 0.4631 |
-| 50 | 56 | 0.0100 | 0.4641 | 0.0686 | 0.4626 |
+| 5 | 14 | 0.1000 | 0.4715 | 0.0710 | 0.4690 |
+| 5 | 28 | 0.0010 | 0.4675 | 0.0641 | 0.4675 |
+| 5 | 56 | 0.0100 | 0.4688 | 0.0685 | 0.4671 |
+| 20 | 14 | 0.1000 | 0.4699 | 0.0714 | 0.4675 |
+| 20 | 28 | 0.0010 | 0.4665 | 0.0639 | 0.4665 |
+| 20 | 56 | 0.0100 | 0.4676 | 0.0686 | 0.4657 |
+| 50 | 14 | 0.0100 | 0.4657 | 0.0720 | 0.4637 |
+| 50 | 28 | 0.0010 | 0.4639 | 0.0639 | 0.4639 |
+| 50 | 56 | 0.0100 | 0.4650 | 0.0688 | 0.4634 |
 
 The CV-best pair is **m = 5, window = 14, C = 0.1**; re-tuning jointly with C (it was first scored at a fixed C = 0.001) selected the same pair, so nothing changed. The pipeline fails if `config` disagrees with this table.
 
@@ -84,15 +84,15 @@ The CV-best pair is **m = 5, window = 14, C = 0.1**; re-tuning jointly with C (i
 
 | features | model | fold_m5 | fold_m6 | fold_m7 | fold_m8 | cv_pr_auc_mean |
 |---|---|---|---|---|---|---|
-| without month | logreg | 0.4354 | 0.5029 | 0.5515 | 0.3922 | 0.4705 |
-| without month | xgboost | 0.4044 | 0.4284 | 0.5523 | 0.3950 | 0.4450 |
-| with month | logreg | 0.4265 | 0.5050 | 0.5490 | 0.3938 | 0.4686 |
-| with month | xgboost | 0.4112 | 0.4257 | 0.5633 | 0.3882 | 0.4471 |
+| without month | logreg | 0.4350 | 0.5055 | 0.5523 | 0.3933 | 0.4715 |
+| without month | xgboost | 0.4338 | 0.4193 | 0.5466 | 0.3899 | 0.4474 |
+| with month | logreg | 0.4256 | 0.5065 | 0.5492 | 0.3951 | 0.4691 |
+| with month | xgboost | 0.3737 | 0.4468 | 0.5524 | 0.3889 | 0.4405 |
 
-Adding cyclic month features does not help the final model (LogReg 0.4705 → 0.4686, worse in 2/4 folds); XGBoost +0.0021 (0.4450 → 0.4471). Training covers months 1–8 only, so months 9–12 would be an extrapolation. **Decision: no month feature** (evidence: CV only).
+Adding cyclic month features lowers mean CV AP for both models: LogReg 0.4715 → 0.4691 and fixed-tree XGBoost 0.4474 → 0.4405. For each model, two folds improve and two worsen. Training contains only months 1–8 in one year; these checks do not establish a reusable seasonal effect. **Decision: no month feature**, supported by development CV. The earlier test-based justification remains withdrawn.
 
 ## Day-level history as its own group (notebook §8)
 
-`hist_rate_network_1d` takes one value per day (shared by hundreds of flights), so a flexible model could use it as a date identifier. It is kept separate so the ablation can test it. **CV evidence** ([04](04_evaluation.md), Part A.4): LogReg +0.011 in 3/4 folds, so it stays. For XGBoost, CV shows no gain (-0.004, 3/4 folds), so no claim is made for it there.
+`hist_rate_network_1d` takes one value per day (shared by hundreds of flights), so a flexible model could use it as a date identifier. It is kept separate so the ablation can test it. **CV evidence** ([04](04_evaluation.md), Part A.4): LogReg mean gain +0.0114, improving 3/4 folds, supports retaining the group. XGBoost has a slightly negative mean gain (−0.0007), despite improving in 3/4 folds; this does not establish a general absence of value for that family.
 
 ![feat_history_corr](../figures/feat_history_corr.png)
