@@ -28,7 +28,7 @@ Evidence is kept apart: **Part A** is what any decision rests on (CV / Sep–Oct
 
 ### A.2 History settings, decision clock, month (CV)
 
-m, window and C are tuned jointly: the CV-best pair is **m = 5, window = @L@, C = @C@ (unchanged by the joint re-tuning)**; the 20:00 clock scores 0.4705 vs 0.4587 (2-day lag) and 0.4812 (leaky 24:00 clock). No month feature (LogReg 0.4705 vs 0.4686 with month). Details: [02](02_feature_engineering.md).
+m, window and C are tuned jointly: the CV-best pair is **m = 5, window = 14, C = 0.1 (unchanged by the joint re-tuning)**; the 20:00 clock scores 0.4705 vs 0.4587 (2-day lag) and 0.4812 (leaky 24:00 clock). No month feature (LogReg 0.4705 vs 0.4686 with month). Details: [02](02_feature_engineering.md).
 
 ### A.3 Calibration rule, decided on Sep–Oct
 
@@ -251,3 +251,30 @@ PSI: the largest shifts into Sep–Oct are hist_rate_network_7d, hist_rate_origi
 ![psi_top15](../figures/psi_top15.png)
 
 ![xgb_gain_top20](../figures/xgb_gain_top20.png)
+
+
+## Decision support: rescheduling / add-buffer candidates (test)
+
+Each test day the final model's ranking selects the top-k% flights as candidates for a capacity-limited review desk (k = 5, 10, 15, 20), against the prior (random) and route-history rankings. Source: `results/rescheduling_candidates.csv`.
+
+| model | top-k% | flagged/day | precision | recall | lift | delayed per 100 flagged |
+|---|---|---|---|---|---|---|
+| Prior (base rate) | 5% | 45 | 0.251 | 0.049 | 0.97 | 25.1 |
+| Prior (base rate) | 10% | 89 | 0.243 | 0.095 | 0.94 | 24.3 |
+| Prior (base rate) | 15% | 133 | 0.250 | 0.145 | 0.97 | 25.0 |
+| Prior (base rate) | 20% | 177 | 0.252 | 0.195 | 0.97 | 25.2 |
+| Route history | 5% | 45 | 0.386 | 0.076 | 1.49 | 38.6 |
+| Route history | 10% | 89 | 0.358 | 0.139 | 1.39 | 35.8 |
+| Route history | 15% | 133 | 0.346 | 0.201 | 1.34 | 34.6 |
+| Route history | 20% | 177 | 0.339 | 0.263 | 1.31 | 33.9 |
+| LogReg (Platt, rule-selected) | 5% | 45 | 0.469 | 0.092 | 1.82 | 46.9 |
+| LogReg (Platt, rule-selected) | 10% | 89 | 0.444 | 0.173 | 1.72 | 44.4 |
+| LogReg (Platt, rule-selected) | 15% | 133 | 0.423 | 0.246 | 1.64 | 42.3 |
+| LogReg (Platt, rule-selected) | 20% | 177 | 0.406 | 0.315 | 1.57 | 40.6 |
+| XGBoost (raw, rule-selected) | 5% | 45 | 0.464 | 0.091 | 1.80 | 46.4 |
+| XGBoost (raw, rule-selected) | 10% | 89 | 0.435 | 0.169 | 1.68 | 43.5 |
+| XGBoost (raw, rule-selected) | 15% | 133 | 0.416 | 0.242 | 1.61 | 41.6 |
+| XGBoost (raw, rule-selected) | 20% | 177 | 0.400 | 0.310 | 1.55 | 40.0 |
+
+* **This shows ranking quality, not realised operational savings.** The data contain no cost, aircraft-rotation or schedule-change model, so the benefit of moving or buffering a flight cannot be estimated.
+* The brief's exact definition of rescheduling was not supplied; anything beyond this ranking analysis (cost model, feasibility, intervention effect) is missing, not invented.

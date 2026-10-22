@@ -18,4 +18,4 @@
 * A cancellation is known by the scheduled departure; an arrival outcome at the actual gate arrival.
 * Destination time zones: fixed table + the 2013 DST rule.
 * Cancelled/diverted flights are dropped from the target (counted as delayed in the sensitivity analysis).
-* Phase 1 is machine learning only: no literature review, deep-learning model or IEEE report text is part of this repository state.
+* Phase 1 is machine learning only: no deep-learning model. The IEEE report (`report/main.tex`, with a related-work section) is a separate deliverable.

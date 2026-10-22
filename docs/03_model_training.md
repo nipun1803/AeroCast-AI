@@ -33,7 +33,7 @@ Folds: train Jan–Apr → validate May; Jan–May → Jun; Jan–Jun → Jul; J
 | 0.1000 | 0.4705 | 0.0706 |
 | 1.0000 | 0.4703 | 0.0708 |
 
-Chosen **C = @C@** (the curve is flat above C ≈ 0.003; the fold spread is far larger than any difference between C values).
+Chosen **C = 0.1** (the curve is flat above C ≈ 0.003; the fold spread is far larger than any difference between C values).
 
 ![train_cv_logreg](../figures/train_cv_logreg.png)
 

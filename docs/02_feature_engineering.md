@@ -36,7 +36,7 @@ Predictions for all flights on day **D** are issued at **20:00 NYC time on D-1**
 | history_entity | 18 |
 | history_day | 7 |
 
-Entity history rates use beta-binomial shrinkage toward a past-only network prior: `(late + m·prior)/(flights + m)`, with **m = 5** and a **@L@-day** long window (7-day short window). Worked example (EWR→CAE) in the notebook.
+Entity history rates use beta-binomial shrinkage toward a past-only network prior: `(late + m·prior)/(flights + m)`, with **m = 5** and a **14-day** long window (7-day short window). Worked example (EWR→CAE) in the notebook.
 
 ![feat_history_day_dist](../figures/feat_history_day_dist.png)
 
@@ -78,7 +78,7 @@ The 20:00 clock beats a 2-day lag by 0.012 (better in 4/4 folds). Counting every
 | 50 | 28 | 0.0010 | 0.4631 | 0.0641 | 0.4631 |
 | 50 | 56 | 0.0100 | 0.4641 | 0.0686 | 0.4626 |
 
-The CV-best pair is **m = 5, window = @L@, C = @C@**; re-tuning jointly with C (it was first scored at a fixed C = 0.001) selected the same pair, so nothing changed. The pipeline fails if `config` disagrees with this table.
+The CV-best pair is **m = 5, window = 14, C = 0.1**; re-tuning jointly with C (it was first scored at a fixed C = 0.001) selected the same pair, so nothing changed. The pipeline fails if `config` disagrees with this table.
 
 ## Month features removed (notebook §7)
 

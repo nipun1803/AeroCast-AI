@@ -29,7 +29,7 @@ bash scripts/reproduce.sh
 
 It (0) deletes `results/` and `figures/`, (1) runs `scripts/run_phase1.py`, (2) executes the four notebooks in place (kernel `aerocast`; notebooks 03 and 04 assert every table they show equals its saved artefact in `results/`), (3) runs `scripts/export_report_assets.py`, (4) runs `pytest`. It stops with a non-zero status on any failure (`set -euo pipefail`).
 
-Runtime of the last clean run: pipeline 9 min, notebooks 3 min, export + pytest 0 min; total 13 min.
+Runtime of the last clean run: pipeline 9 min, notebooks 3 min, export + pytest 1 min; total 13 min.
 
 ## Artefacts
 

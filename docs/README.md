@@ -1,6 +1,6 @@
 # AeroCast-AI Phase 1: documentation index
 
-Phase 1 (machine learning only): day-ahead prediction of `arr_delay ≥ 15 min` for 2013 NYC departures, decided at **20:00 NYC on D-1**. Models: logistic regression and XGBoost; references: the base-rate prior and a route-history heuristic. No weather, no deep learning, no literature review in this phase.
+Phase 1 (machine learning only): day-ahead prediction of `arr_delay ≥ 15 min` for 2013 NYC departures, decided at **20:00 NYC on D-1**. Models: logistic regression and XGBoost; references: the base-rate prior and a route-history heuristic. No weather and no deep learning in this phase; the IEEE report with related work is in `report/`.
 
 ## Reading order
 

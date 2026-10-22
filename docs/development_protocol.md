@@ -18,7 +18,7 @@
 | Decision | Evidence |
 |---|---|
 | Decision clock 20:00 (vs 2-day lag) | rolling CV: 0.4705 vs 0.4587 |
-| m = 5, window = @L@ days, C = @C@ | rolling CV, tuned jointly |
+| m = 5, window = 14 days, C = 0.1 | rolling CV, tuned jointly |
 | No month feature | rolling CV: LogReg 0.4705 vs 0.4686 |
 | Day-level history group kept (LogReg) | CV ablation: +0.011, 3/4 folds |
 | XGBoost configuration | rolling CV |

@@ -49,7 +49,7 @@ PR-AUC is average precision. Every learned row names its calibration variant; th
 | [development protocol](docs/development_protocol.md) | what was seen when (test not perfectly clean) |
 | [limitations & assumptions](docs/limitations_and_assumptions.md) | weather, single year, assumptions |
 | [reproducibility](docs/reproducibility.md) | environment, `reproduce.sh`, artefacts |
-| [report/](report/README.md) | figures and LaTeX-ready tables for the IEEE report (written separately) |
+| [report/](report/README.md) | IEEE report source (`main.tex`, `references.bib`), generated figures/tables, build steps |
 
 ## Layout
 
