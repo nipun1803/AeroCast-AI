@@ -102,6 +102,10 @@ def main(quick: bool = False):
     policies.to_csv(R / "operating_policies.csv", index=False)
     log("\n" + policies.round(3).to_string())
 
+    resched = pipeline.rescheduling_candidates(P.labels, final_preds, calib_choice)
+    resched.to_csv(R / "rescheduling_candidates.csv", index=False)
+    log("\nrescheduling candidates (test)\n" + resched.round(3).to_string())
+
     drift_tbl = pipeline.monthly_drift(P.labels, final_preds, calib_choice)
     drift_tbl.to_csv(R / "monthly_calibration_drift.csv", index=False)
 

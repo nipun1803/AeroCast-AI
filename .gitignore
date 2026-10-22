@@ -6,6 +6,7 @@ __pycache__/
 .ipynb_checkpoints/
 .pytest_cache/
 .DS_Store
+*.log
 
 # --- data
 # Raw dataset (~43 MB) is re-downloadable from Kaggle; place it in data/raw/.

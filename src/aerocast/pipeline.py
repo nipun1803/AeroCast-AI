@@ -472,6 +472,30 @@ def operating_policies(labels: Labels, final_preds: dict, thresholds: dict, choi
     return label(pd.DataFrame(rows), choice)
 
 
+def rescheduling_candidates(labels: Labels, final_preds: dict, choice: dict,
+                            names=("prior", "route_history", "logreg_rule_selected",
+                                   "xgboost_rule_selected"),
+                            shares=config.RESCHEDULE_SHARES, split: str = "test") -> pd.DataFrame:
+    """Decision-support view: each day, the top-k% flights by risk become
+    reschedule / add-buffer candidates for a capacity-limited review desk.
+
+    Reports ranking quality only (precision, recall, lift, delayed flights
+    captured per 100 flagged). It is NOT realised operational savings: the data
+    holds no cost or schedule-change model.
+    """
+    rows = []
+    n_days = len(np.unique(labels.dates[split]))
+    for name in names:
+        for share in shares:
+            flagged = evaluate.flag_daily_top_share(labels.dates[split], final_preds[name][split], share)
+            rep = evaluate.policy_report(labels.y[split], flagged)
+            rows.append({"model": name, "split": split, "top_share": share,
+                         "flagged_per_day": float(flagged.sum() / n_days),
+                         **rep, "delayed_per_100_flagged": 100 * rep["precision"],
+                         "delayed_captured": int((flagged & (labels.y[split] == 1)).sum())})
+    return label(pd.DataFrame(rows), choice)
+
+
 CALIB_STUDY_SPLITS = ["test", "test_m11", "test_m12"]
 
 

@@ -106,6 +106,8 @@ ROLLING_CALIB_SENSITIVITY = [14, 28, 56]
 # riskiest flights of each day. Rank-based, so it is robust to the base-rate
 # shift between seasons. Chosen a priori as a capacity assumption.
 DAILY_FLAG_SHARE = 0.10
+# decision-support analysis: capacity of a daily review desk, as a share of that day's flights
+RESCHEDULE_SHARES = (0.05, 0.10, 0.15, 0.20)
 # Secondary policy: a score threshold frozen on Sep-Oct to reach this
 # precision. 0.50 was tried first and is unreachable on Sep-Oct (base rate
 # 15.7%), so the target was lowered to 0.40 -- a Sep-Oct-based decision.
