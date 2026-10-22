@@ -10,7 +10,7 @@
 | calib | 55628 | 0.157 | 2013-09-01 | 2013-10-31 |
 | test | 53991 | 0.258 | 2013-11-01 | 2013-12-31 |
 
-Jan 1–7 is excluded (warm-up). Base rate shifts: 26.5% train, 15.7% calibration, 25.8% test (Nov 18.1%, Dec 33.5%).
+Jan 1–7 is excluded (warm-up). The table lists scoring rows, not all eligible fitting labels: the final fit uses 211,517 training labels, excluding 167 unavailable at its deadline. CV also enforces its fitting/selection clocks. Base rate shifts: 26.5% train, 15.7% calibration, 25.8% test (Nov 18.1%, Dec 33.5%).
 
 ## Baselines (notebook §3)
 
@@ -26,12 +26,12 @@ Folds: train Jan–Apr → validate May; Jan–May → Jun; Jan–Jun → Jul; J
 
 | C | cv_mean | cv_std |
 |---|---|---|
-| 0.0003 | 0.4660 | 0.0683 |
-| 0.0010 | 0.4684 | 0.0695 |
-| 0.0030 | 0.4698 | 0.0699 |
-| 0.0100 | 0.4705 | 0.0702 |
-| 0.1000 | 0.4705 | 0.0706 |
-| 1.0000 | 0.4703 | 0.0708 |
+| 0.0003 | 0.4664 | 0.0686 |
+| 0.0010 | 0.4690 | 0.0697 |
+| 0.0030 | 0.4706 | 0.0701 |
+| 0.0100 | 0.4713 | 0.0705 |
+| 0.1000 | 0.4715 | 0.0710 |
+| 1.0000 | 0.4712 | 0.0710 |
 
 Chosen **C = 0.1** (the curve is flat above C ≈ 0.003; the fold spread is far larger than any difference between C values).
 
@@ -43,16 +43,16 @@ Grid (48 combinations, 16 sampled): depth {2, 3, 5}, min_child_weight {20, 100},
 
 | config | mean_pr_auc | std_pr_auc | n_trees |
 |---|---|---|---|
-| 0 | 0.4754 | 0.0673 | 143 |
-| 15 | 0.4725 | 0.0741 | 146 |
-| 1 | 0.4711 | 0.0694 | 340 |
-| 4 | 0.4708 | 0.0764 | 76 |
-| 5 | 0.4704 | 0.0688 | 231 |
-| 10 | 0.4692 | 0.0684 | 314 |
-| 11 | 0.4692 | 0.0685 | 374 |
-| 14 | 0.4683 | 0.0683 | 64 |
+| 15 | 0.4761 | 0.0703 | 148 |
+| 0 | 0.4728 | 0.0688 | 98 |
+| 5 | 0.4709 | 0.0665 | 204 |
+| 1 | 0.4693 | 0.0692 | 373 |
+| 11 | 0.4680 | 0.0674 | 337 |
+| 14 | 0.4675 | 0.0671 | 104 |
+| 10 | 0.4671 | 0.0665 | 224 |
+| 4 | 0.4623 | 0.0625 | 63 |
 
-Chosen: depth 2, learning rate 0.1, min_child_weight 100, colsample 0.8, λ 10.0, **143 trees** (CV mean ± sd 0.4754 ± 0.0673 with in-fold early stopping). The top configurations differ by less than one fold sd.
+Chosen: depth 2, learning rate 0.1, min_child_weight 20, colsample 0.5, λ 1.0, subsample 0.8, **148 trees**. Its in-fold early-stopping search score is 0.4761 ± 0.0703; its fixed-tree comparison score is 0.4474 ± 0.0686. The search configurations and tree count are selected on the same development folds, so these are not independent nested-CV estimates.
 
 ## Final-model rule (notebook §7)
 
@@ -60,18 +60,18 @@ Chosen: depth 2, learning rate 0.1, min_child_weight 100, colsample 0.8, λ 10.0
 
 | model | calibration | cv_pr_auc_mean | cv_pr_auc_std | fold_m5 | fold_m6 | fold_m7 | fold_m8 |
 |---|---|---|---|---|---|---|---|
-| Prior (base rate) | none | 0.2775 | 0.0483 | 0.2267 | 0.3152 | 0.3221 | 0.2460 |
-| Route history | none | 0.3476 | 0.0601 | 0.2766 | 0.3911 | 0.4034 | 0.3194 |
-| LogReg (as deployed) | raw | 0.4705 | 0.0706 | 0.4354 | 0.5029 | 0.5515 | 0.3922 |
-| XGBoost (as deployed, fixed trees) | raw | 0.4450 | 0.0729 | 0.4044 | 0.4284 | 0.5523 | 0.3950 |
-| XGBoost (in-fold early stopping, optimistic; not used) | raw | 0.4754 | 0.0673 | 0.4490 | 0.4956 | 0.5574 | 0.3995 |
+| Prior (base rate) | none | 0.2777 | 0.0481 | 0.2267 | 0.3152 | 0.3221 | 0.2467 |
+| Route history | none | 0.3477 | 0.0601 | 0.2766 | 0.3911 | 0.4034 | 0.3197 |
+| LogReg (as deployed) | raw | 0.4715 | 0.0710 | 0.4350 | 0.5055 | 0.5523 | 0.3933 |
+| XGBoost (as deployed, fixed trees) | raw | 0.4474 | 0.0686 | 0.4338 | 0.4193 | 0.5466 | 0.3899 |
+| XGBoost (in-fold early stopping, optimistic; not used) | raw | 0.4761 | 0.0703 | 0.4400 | 0.5054 | 0.5590 | 0.3999 |
 
-Paired per-fold difference LogReg − XGBoost: +0.0310, +0.0746, -0.0007, -0.0027 (mean +0.0255, sd 0.0362; LogReg better in 2/4 folds).
+Paired per-fold difference LogReg − XGBoost: +0.0012, +0.0862, +0.0057, +0.0034 (mean +0.0241, sd 0.0414; LogReg leads in 4/4 folds). Four folds do not establish population-level superiority.
 
-**LogReg and XGBoost are not statistically distinguished**: the CV gap (0.0255) is much smaller than the fold sd (about 0.07), and the test bootstrap CI includes 0 ([04](04_evaluation.md)). **The choice of LogReg rests on the rule declared before test** (`config.FINAL_MODEL`, enforced by the pipeline), not on demonstrated superiority. In-fold early stopping would have inflated XGBoost to 0.4754 and reversed the choice; this is disclosed in the [development protocol](development_protocol.md).
+LogReg has the higher development CV mean (0.4715 versus 0.4474), so it is selected by the declared rule. The test AP-difference interval (XGBoost − LogReg, [-0.013, +0.037]) includes zero: it does not establish a test-performance difference, equivalence, or noninferiority. Test exposure during development remains disclosed. XGBoost's optimistic in-fold search score (0.4761) would reverse the family choice if used in place of its fixed-tree score. See the [development protocol](development_protocol.md).
 
 ## Theory notes
 
-* **Logistic regression** minimises the L2-regularised log-loss `−(1/n)Σ[y log p + (1−y) log(1−p)] + ‖w‖²/(2Cn)`; convex; smaller C shrinks harder (needed for correlated history features).
+* **Logistic regression** minimises the L2-regularised log-loss `−(1/n)Σ[y log p + (1−y) log(1−p)] + ‖w‖²/(2Cn)`; convex; smaller C shrinks harder. This helps with correlated history features. Convexity alone does not establish uniqueness without additional conditions.
 * **XGBoost** fits trees stage-wise on a second-order Taylor expansion of the loss (gradients g = p − y, Hessians h = p(1−p)) plus a complexity penalty; optimal leaf weight −G/(H+λ).
 * **Log-loss is a strictly proper scoring rule**: minimised only by the true probability, so training pushes toward calibration on the training distribution (the Brier score is also proper; accuracy and AUC are not).
