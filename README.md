@@ -1,10 +1,26 @@
 # AeroCast-AI: Day-Ahead Flight Delay Risk
 
+**Project 21: Flight Delay Prediction and Rescheduling**
+
+**Project brief title:** Flight Delay Prediction via Gradient Boosting and Temporal Deep Learning
+
 **AML Project 21 · Phase 1 (machine learning only).** Predict whether a flight arrives ≥ 15 min late using only information available at **20:00 NYC on the evening before departure**. Data: [`nycflights13`](https://www.kaggle.com/datasets/mahoora00135/flights) (336,776 departures from EWR, JFK, LGA in 2013). Models: logistic regression and XGBoost, against two references (the base-rate *prior* and a *route-history* heuristic). **No weather** is used (observed weather would leak at the decision clock; see [limitations](docs/limitations_and_assumptions.md)).
 
 * Split: train Jan 8–Aug · calibration Sep–Oct · test Nov–Dec (chronological); rolling-origin CV inside train.
-* **Final model: LogReg (Platt, rule-selected)**, chosen by the CV rule declared before test. LogReg and XGBoost are **not statistically distinguished** (CV 0.4705 vs 0.4450, fold sd about 0.07; test bootstrap CI of the difference [-0.010, +0.041] includes 0).
+* **Final model: LogReg (Platt, rule-selected)**, selected by higher development CV AP (0.4715 vs fixed-tree XGBoost 0.4474). The 95% day-block bootstrap interval for test AP, XGBoost − LogReg, [−0.013, +0.037] includes zero; it does not establish a difference, equivalence, or noninferiority. Development-time test exposure is disclosed below.
 * The chronological split is retained; a single year and three origins cannot establish cross-year generalisation.
+
+## Phase 1 scope and ML workflow
+
+Phase 1 evaluates the ML component: dataset quality and EDA, feature engineering, baseline models, chronological validation, calibration, interpretation and reproducible code. The [IEEE report](report/main.tex) contains the literature review and theoretical discussion. A compact MLP with learned airline, origin and destination embeddings is planned for a later phase to investigate interactions missed by manual route and congestion summaries. A temporal deep-learning model is optional and would require correctly ordered flight history.
+
+1. **Data and target:** construct `is_delayed = arr_delay >= 15`. Cancelled/diverted flights remain in the schedule used for congestion counts but are excluded from the main target; a separate sensitivity analysis treats them as delayed.
+2. **Features:** build 45 categorical, schedule, cyclic-time, calendar, congestion and historical-delay features. The flight's own actual departure/arrival measurements are excluded from predictors. Earlier flights' outcomes enter history only after they are known at the decision clock.
+3. **Model fitting and selection:** use four rolling-origin validation folds (May–August), tune Logistic Regression and XGBoost, and compare them using the same available features. Fitting, CV scoring used for selection, calibration and threshold selection all enforce outcome-availability cutoffs. Of 211,684 training scoring rows, **211,517 labels** are eligible for final fitting; 167 outcomes are unavailable before the first September prediction. XGBoost's in-fold early-stopping score is reported as optimistic; model-family selection uses its fixed-tree CV score.
+4. **Calibration and evaluation:** fit candidate calibrators on September, check them on October, and freeze the static calibrator and precision threshold before the first November prediction. The final static fit uses **55,377 of 55,628 calibration labels**, excluding 251 unavailable outcomes. Evaluate on November–December using average precision, ROC AUC, Brier score, calibration error and operating-policy precision/recall. Causal rolling Platt calibration is a separate comparison.
+5. **Offline decision support:** flag the highest-risk 5–20% of flights each day under explicit review-capacity assumptions. The current analysis measures delayed-flight capture. A full what-if rescheduling simulation, including feasible alternative schedules and estimated delay reductions, remains future work.
+
+Development-time test exposure and other limitations are disclosed in the [development protocol](docs/development_protocol.md) and [limitations](docs/limitations_and_assumptions.md).
 
 ## Team and roles
 
@@ -20,37 +36,59 @@ Roles are taken from each member's commit history (`git log --author`); the fina
 
 ## Setup
 
+Run from the repository root with Python 3.12. On macOS, XGBoost needs the OpenMP runtime; install it with `brew install libomp` if it is missing.
+
 ```bash
-python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt && .venv/bin/pip install -e .
-# place flights.csv in data/raw/ ; register the kernel:
-.venv/bin/python -m ipykernel install --sys-prefix --name aerocast
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+python -m pip install -e .
+python -m ipykernel install --sys-prefix --name aerocast
 ```
+
+Download the [Kaggle Flights dataset](https://www.kaggle.com/datasets/mahoora00135/flights) and place `flights.csv` in `data/raw/`. The raw CSV is excluded from Git by `.gitignore`; it is required to rerun the full pipeline. Saved results are tracked in the repository.
 
 ## How to reproduce
 
+With `.venv` activated, run the ML pipeline and execute all four notebooks:
+
 ```bash
-bash scripts/reproduce.sh     # clean state -> pipeline -> 4 notebooks -> report export -> pytest
+python -B -m pytest -q -p no:cacheprovider
+python -B scripts/run_phase1.py
+python -B -m nbconvert --to notebook --execute --inplace \
+  --ExecutePreprocessor.timeout=3600 \
+  --ExecutePreprocessor.kernel_name=aerocast \
+  notebooks/01_eda.ipynb notebooks/02_feature_engineering.ipynb \
+  notebooks/03_model_training.ipynb notebooks/04_evaluation.ipynb
 ```
 
-Details, runtime and the artefact list: [docs/reproducibility.md](docs/reproducibility.md).
+The verified run passed **36 tests**, completed the pipeline in about **22 minutes** on a MacBook Pro, and executed all four notebooks successfully. Runtime varies by machine; history tuning can run for several minutes between progress messages. Notebooks 03 and 04 check their computed tables against the pipeline's saved outputs.
+
+Rerunning overwrites generated files in `results/` and `figures/`, and notebook outputs. These commands leave report assets unchanged. `scripts/reproduce.sh` additionally deletes generated outputs and report assets, exports report tables/figures, checks report numbers and attempts a PDF build.
+
+For another dataset, matching column names alone is insufficient: [config.py](src/aerocast/config.py) contains the 2013 split/warm-up dates, NYC departure-clock assumptions, destination time zones, daylight-saving rules and expected CV selections. Review these settings and dataset-specific checks before rerunning with different data.
+
+Environment and artefact details: [docs/reproducibility.md](docs/reproducibility.md). Report instructions: [report/README.md](report/README.md).
 
 ## Headline result (test = Nov–Dec 2013, 53,991 flights, base rate 0.258)
 
-PR-AUC is average precision. Every learned row names its calibration variant; the *prior* and *route history* are reference rows.
+PR-AUC is average precision (AP). Values below are rounded from [results/headline_test.csv](results/headline_test.csv); selection and fitting-clock metadata are in [results/summary.json](results/summary.json). Every learned row names its calibration variant; the *prior* and *route history* are reference rows. Lower Brier and ECE values indicate better probability quality.
 
 | model | calibration | pr_auc | roc_auc | brier | ece | ece_equal_mass | oracle_recall@p0.40 |
 |---|---|---|---|---|---|---|---|
 | Prior (base rate) | none | 0.258 | 0.500 | 0.192 | 0.007 | 0.084 | 0.000 |
 | Route history | none (smoothed rate) | 0.353 | 0.621 | 0.187 | 0.037 | 0.038 | 0.244 |
-| LogReg (raw) | raw | 0.394 | 0.654 | 0.181 | 0.019 | 0.022 | 0.430 |
-| LogReg (Platt, rule-selected) | Platt (rule-selected) | 0.394 | 0.654 | 0.187 | 0.082 | 0.082 | 0.430 |
-| LogReg (rolling Platt 28d) | rolling Platt 28d (causal) | 0.392 | 0.657 | 0.181 | 0.027 | 0.026 | 0.432 |
-| XGBoost (raw, rule-selected) | raw (rule-selected) | 0.407 | 0.662 | 0.180 | 0.027 | 0.027 | 0.474 |
-| XGBoost (rolling Platt 28d) | rolling Platt 28d (causal) | 0.396 | 0.659 | 0.180 | 0.024 | 0.023 | 0.416 |
+| LogReg (raw) | raw | 0.394 | 0.654 | 0.181 | 0.019 | 0.022 | 0.431 |
+| LogReg (Platt, rule-selected) | Platt (rule-selected) | 0.394 | 0.654 | 0.187 | 0.082 | 0.082 | 0.431 |
+| LogReg (rolling Platt 28d) | rolling Platt 28d (causal) | 0.392 | 0.657 | 0.181 | 0.027 | 0.027 | 0.431 |
+| XGBoost (raw, rule-selected) | raw (rule-selected) | 0.404 | 0.662 | 0.180 | 0.027 | 0.026 | 0.462 |
+| XGBoost (rolling Platt 28d) | rolling Platt 28d (causal) | 0.394 | 0.659 | 0.181 | 0.026 | 0.025 | 0.417 |
 
-* **Static rule vs raw vs rolling (LogReg):** test ECE 0.082 (Platt, rule-selected) vs 0.019 (raw) vs 0.027 (rolling Platt 28d). **The static rule fails in December** (ECE 0.142, December base rate 33.5%).
-* **Primary policy (daily top 10%, `LogReg (Platt, rule-selected)`):** precision 0.444, recall 0.173, lift 1.72× (prior: 0.94×).
+* **Static rule vs raw vs rolling (LogReg):** test ECE 0.082 (Platt, rule-selected) vs 0.019 (raw) vs 0.027 (rolling Platt 28d). **The static rule fails in December** (ECE 0.143, December base rate 33.5%).
+* **Primary policy (daily top 10%, `LogReg (Platt, rule-selected)`):** precision 0.445, recall 0.173, lift 1.72× (prior: 0.94×).
+* **Secondary policy:** the LogReg threshold frozen on eligible September–October labels to target precision ≥ 0.40 is 0.330; on test it achieves precision 0.495 and recall 0.142. Test precision is an observed result, not a guarantee for future flights.
 * `oracle_recall@p` tunes the threshold on the evaluated labels: a model-comparison metric, not an operating result.
+* `ece` uses fixed-width bins. The current equal-mass ECE implementation is sensitive to row order when predictions tie, especially for the constant prior. Treat that column as a diagnostic with this limitation; use fixed-width ECE and Brier for the main calibration discussion.
 
 ## Documentation
 
@@ -66,10 +104,13 @@ PR-AUC is average precision. Every learned row names its calibration variant; th
 ## Layout
 
 ```text
+data/raw/       flights.csv (local input, excluded from Git)
 src/aerocast/   all logic (config, data, features, leakage, models, evaluate, drift, pipeline, plots, eda, artefacts, report)
-scripts/        run_phase1.py (single source of truth) · reproduce.sh · export_report_assets.py
+scripts/        run_phase1.py · reproduce.sh · export_report_assets.py · check_report_numbers.py
 notebooks/      01_eda · 02_feature_engineering · 03_model_training · 04_evaluation (import only)
-tests/          leakage, decision clock, time zones, evaluation metrics, report export
+tests/          leakage, feature/fitting clocks, time zones, evaluation metrics, report export
 results/        every table + predictions.csv.gz + summary.json (committed; predictions.csv.gz is the audit trail)
-figures/        PNG figures    docs/  documentation    report/  report assets
+figures/        generated PNG figures
+docs/           stage explanations, reproducibility and limitations
+report/         IEEE LaTeX source, bibliography, PDF and generated report assets
 ```
