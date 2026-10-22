@@ -16,16 +16,16 @@ tectonic -X compile main.tex            # runs bibtex automatically
 # or: pdflatex main && bibtex main && pdflatex main && pdflatex main
 ```
 
-Needs `IEEEtran`, `cite`, `booktabs`, `graphicx`, `amsmath`, `enumitem`, `hyperref`. `figures/` and `tables/` are rebuilt by `python scripts/export_report_assets.py`; `bash scripts/reproduce.sh` does everything (pipeline, notebooks, export, tests, number check, PDF).
+Needs `IEEEtran`, `cite`, `booktabs`, `graphicx`, `amsmath`, `enumitem`, `hyperref`. The current saved report is 20 pages, with 22 figure copies and 20 CSV/LaTeX table pairs. Run `python -B scripts/export_report_assets.py` from the repository root only when saved results or figures have changed. For the working staged pipeline/notebook commands and the clean-rebuild helper's dispatch limitation, see [reproducibility.md](../docs/reproducibility.md). Explanation-only edits do not require model retraining; changes to `main.tex` require recompiling `main.pdf`.
 
 ## Numbers
 
-Prose numbers are typed by hand. `python scripts/check_report_numbers.py` asserts the quoted ones against `results/` and fails on drift. It covers the headline, policy, CV, calibration, bootstrap and rescheduling numbers only, not every number in the text.
+Prose numbers are typed by hand. From the repository root, `python -B scripts/check_report_numbers.py` checks selected numeric strings against `results/`. The current report passed 40/40 checks. These cover selected headline, policy, CV, calibration, bootstrap and candidate-ranking values; they do not validate every number or its surrounding interpretation. Notebook outputs and supporting prose must also agree with the saved run.
 
-## References to VERIFY
+## Reference and manuscript status
 
-* `yu2019` (Yu et al., *Flight delay prediction for commercial air transport: a deep learning approach*, Transp. Res. E 2019): not confirmed by web search; author list and pages from memory.
-* `belcastro2016`: existence confirmed from a bibliographic record (ACM TIST 8(1), 2016); abstract not read, so its matrix cells say `VERIFY`.
-* Other entries were confirmed by web search on 2026-10-22; fields not confirmed (some pages and volumes) are omitted rather than guessed.
-* The matrix cell value `not assessed` means the item was not read in the source.
-* Author names, course line and email in `main.tex` are placeholders.
+* `yu2019`: authors, venue, volume, pages and DOI were verified against Crossref on 2026-10-23, as recorded in `references.bib`. Bibliographic verification does not mean that the paper's full method was assessed.
+* `belcastro2016`: existence was confirmed from a bibliographic record; its abstract and full experimental protocol were not assessed.
+* Literature-matrix cells marked `not assessed` disclose unreviewed methodological details. They are not instructions to insert guessed values.
+* The current manuscript names the project team; the earlier README description of author placeholders is obsolete.
+* Source, bibliography and PDF are at their existing paths. Raw `data/raw/flights.csv` remains a local, Git-ignored input; obtain it using the root README instructions.
