@@ -6,6 +6,18 @@
 * **Final model: LogReg (Platt, rule-selected)**, chosen by the CV rule declared before test. LogReg and XGBoost are **not statistically distinguished** (CV 0.4705 vs 0.4450, fold sd about 0.07; test bootstrap CI of the difference [-0.010, +0.041] includes 0).
 * The chronological split is retained; a single year and three origins cannot establish cross-year generalisation.
 
+## Team and roles
+
+Roles are taken from each member's commit history (`git log --author`); the final integration, review rounds and report were assembled by Nipun.
+
+| Member | Role | Main contributions (from commits) |
+|---|---|---|
+| **Nipun Patlori** | Project lead · pipeline & report integration | Scaffold, central `config`, leakage guards, `models`, `evaluate` (metrics, ECE, calibrators, policies), end-to-end `pipeline` and `run_phase1.py`, rescheduling analysis, `reproduce.sh`, docs/README, IEEE report |
+| **Mohan Kumar C R** | Data & calibration/drift | Data loader, cleaning and temporal splits; PSI and adversarial-validation utilities; drift and calibration-study results, calibrator selection, operating policies |
+| **Krish Dabas** | Features & modelling experiments | Schedule, congestion and lagged-history feature builders; evaluation unit tests; rolling-CV folds, XGBoost configs, ablation, history tuning grid, feature importance |
+| **Omkar Hadole** | EDA, plots & sensitivity | EDA helpers, plotting helpers and figures (reliability, PR/ROC, ablation, importance); permutation importance, month-feature CV, target sensitivity |
+| **Anushka Tyagi** | Notebooks, EDA & results documentation | Authored the four stage notebooks: exploratory analysis with delay-rate figures (01), feature-engineering with distribution plots (02), model training with CV curves (03), and the held-out test evaluation (04), documenting results for each stage |
+
 ## Setup
 
 ```bash
