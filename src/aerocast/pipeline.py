@@ -14,7 +14,16 @@ from sklearn.metrics import average_precision_score, roc_auc_score
 from . import config, data, drift, evaluate, features, models, plots
 
 MODELS = ["logreg", "xgboost"]
-HEADLINE = ["prior", "route_history", "logreg_cal", "xgboost_cal"]
+# Variant keys: <model>_raw | _platt | _isotonic (static, fit on Sep-Oct) | _rolling<N> (causal
+# rolling Platt) | _cal (= the static variant chosen by the a-priori margin rule).
+# Internally the pipeline works with these keys; every saved table and figure
+# carries the explicit labels produced by ``label`` instead.
+ROLL = config.ROLLING_CALIB_DAYS
+HEADLINE = ["prior", "route_history", "logreg_raw", "logreg_cal", f"logreg_rolling{ROLL}",
+            "xgboost_cal", f"xgboost_rolling{ROLL}"]
+# Models compared by the operating policies (the daily top-k% policy only uses
+# within-day ranks, which every monotone recalibration leaves unchanged).
+POLICY_VARIANTS = ["prior", "route_history", "logreg_cal", "xgboost_cal"]
 ORACLE_COLS = [f"oracle_recall@p{t:.2f}" for t in config.PRECISION_SWEEP]
 SHOW_COLS = ["pr_auc", "roc_auc", "brier", "ece", "ece_equal_mass", "mean_pred", "base_rate",
              *ORACLE_COLS]
@@ -22,6 +31,44 @@ RAW_SCORES = ["prior", "route_history", "logreg", "xgboost"]
 # XGBoost emits float32 scores; they are restored to float32 on load so that
 # everything recomputed from the predictions artefact is bit-identical.
 SCORE_DTYPES = {"xgboost": np.float32}
+
+
+FAMILY = {"logreg": "LogReg", "xgboost": "XGBoost"}
+CAL_NAME = {"raw": "raw", "platt": "Platt", "isotonic": "isotonic"}
+
+
+def variant_label(key: str, choice: dict | None = None) -> tuple[str, str]:
+    """(display label, calibration description) of a variant key, e.g.
+    ``logreg_cal`` -> ("LogReg (Platt, rule-selected)", "Platt (rule-selected)")."""
+    if key == "prior":
+        return "Prior (base rate)", "none"
+    if key == "route_history":
+        return "Route history", "none (smoothed rate)"
+    fam, tag = key.split("_", 1)
+    name = FAMILY[fam]
+    if tag == "cal":
+        if choice is None:
+            raise ValueError("the rule-selected variant needs the calibration choice")
+        cal = CAL_NAME[choice[fam]]
+        return f"{name} ({cal}, rule-selected)", f"{cal} (rule-selected)"
+    if tag.startswith("rolling"):
+        n = tag.removeprefix("rolling")
+        return f"{name} (rolling Platt {n}d)", f"rolling Platt {n}d (causal)"
+    if tag == "raw":
+        return f"{name} (raw)", "raw"
+    return f"{name} ({CAL_NAME[tag]}, static)", f"{CAL_NAME[tag]} (static, fit Sep-Oct)"
+
+
+def label(df: pd.DataFrame, choice: dict, col: str = "model") -> pd.DataFrame:
+    """Replace the variant keys in ``col`` by explicit labels and add the
+    ``calibration`` column (key kept as ``variant``). Applied to every table
+    before it is saved or displayed."""
+    pairs = [variant_label(k, choice) for k in df[col]]
+    out = df.copy()
+    out.insert(0, "variant", out[col])
+    out[col] = [p[0] for p in pairs]
+    out.insert(1, "calibration", [p[1] for p in pairs])
+    return out
 
 
 def heuristic_col() -> str:
@@ -123,30 +170,40 @@ def prepare(target: str = "arr15", raw: pd.DataFrame | None = None,
 # ---------------------------------------------------------------------------
 # Feature-design checks (rolling CV on the training window only)
 # ---------------------------------------------------------------------------
-def tune_history(raw: pd.DataFrame, C: float = 0.001) -> pd.DataFrame:
-    """Rolling-CV PR-AUC of LogReg (fixed C) for every (SMOOTHING_M,
-    LONG_WINDOW) pair, plus a decision-clock comparison: the 20:00 clock vs
-    a clock at 00:00 on D-1 (= nothing from D-1 is used, i.e. a ~2-day lag)."""
+def tune_history(raw: pd.DataFrame) -> pd.DataFrame:
+    """Rolling-CV PR-AUC of LogReg for every (SMOOTHING_M, LONG_WINDOW) pair,
+    tuned JOINTLY with the regularisation strength: each pair is scored at the
+    best C of ``models.LOGREG_CS`` (chosen by the same rolling CV), so the
+    history settings are not conditioned on an arbitrary fixed C. The column
+    ``cv_pr_auc_mean_C0.001`` keeps the earlier fixed-C score for comparison.
+    The last row repeats the configured pair with the clock at 00:00 on D-1
+    (= nothing from D-1 is used, i.e. a ~2-day lag)."""
     rows = []
     combos = [(m, L, config.DECISION_HOUR) for m in config.SMOOTHING_M_GRID
               for L in config.LONG_WINDOW_GRID]
     combos.append((config.SMOOTHING_M, config.LONG_WINDOW, 0))
     for m, L, hour in combos:
         P = prepare(raw=raw, features_kw={"m": m, "long_window": L, "decision_hour": hour})
-        cv = models.cv_score_features_logreg(P.Xs["train"], P.ys["train"],
-                                             P.labels.months["train"], P.feat_cols,
-                                             P.cat_cols, C)
+        best_C, cv = models.cv_logreg(P.Xs["train"], P.ys["train"], P.labels.months["train"],
+                                      P.cat_cols, P.num_cols)
+        by_C = cv.groupby("C")["val_pr_auc"].agg(["mean", "std"])
+        folds = cv[cv.C == best_C].set_index("fold")["val_pr_auc"]
         rows.append({"smoothing_m": m, "long_window": L, "decision_hour": hour,
-                     **{f"fold_m{k}": v for k, v in cv.items()},
-                     "cv_pr_auc_mean": cv.mean(), "cv_pr_auc_std": cv.std()})
+                     "best_C": best_C,
+                     **{f"fold_m{k}": v for k, v in zip(config.CV_VAL_MONTHS, folds)},
+                     "cv_pr_auc_mean": by_C.loc[best_C, "mean"],
+                     "cv_pr_auc_std": by_C.loc[best_C, "std"],
+                     "cv_pr_auc_mean_C0.001": by_C.loc[0.001, "mean"]})
     return pd.DataFrame(rows)
 
 
 def check_history_choice(tuning: pd.DataFrame) -> dict:
-    """The config values must be the CV-best (m, L) at the 20:00 clock."""
+    """The config values must be the CV-best (m, L) at the 20:00 clock, with
+    C tuned jointly."""
     grid = tuning[tuning.decision_hour == config.DECISION_HOUR]
     best = grid.loc[grid["cv_pr_auc_mean"].idxmax()]
-    chosen = {"smoothing_m": int(best.smoothing_m), "long_window": int(best.long_window)}
+    chosen = {"smoothing_m": int(best.smoothing_m), "long_window": int(best.long_window),
+              "C": float(best.best_C)}
     if (chosen["smoothing_m"], chosen["long_window"]) != (config.SMOOTHING_M, config.LONG_WINDOW):
         raise RuntimeError(f"CV-best history settings {chosen} differ from config "
                            f"(SMOOTHING_M={config.SMOOTHING_M}, LONG_WINDOW={config.LONG_WINDOW})")
@@ -232,6 +289,7 @@ def cv_summary(lr: LogRegResult, xgb: XGBResult, P: Prepared) -> dict:
     reported; the fixed-count one is used for model selection.
     """
     lr_s = lr.cv[lr.cv.C == lr.C].set_index("fold")["val_pr_auc"]
+    base = baseline_cv(P)
     fixed = models.cv_score_features(P.Xs["train"], P.ys["train"], P.labels.months["train"],
                                      P.feat_cols, xgb.params)
     best = xgb.cv_configs.index[0]
@@ -243,7 +301,48 @@ def cv_summary(lr: LogRegResult, xgb: XGBResult, P: Prepared) -> dict:
                     "folds": [float(v) for v in fixed]},
         "xgboost_infold_early_stopping": {"mean": float(es.mean()), "std": float(es.std()),
                                           "folds": [float(v) for v in es]},
+        **{k: {"mean": float(v.mean()), "std": float(v.std()), "folds": [float(x) for x in v]}
+           for k, v in base.items()},
     }
+
+
+def baseline_cv(P: Prepared) -> dict[str, pd.Series]:
+    """Rolling-CV PR-AUC of the two reference models on the same folds (the
+    prior has PR-AUC = the validation month's base rate)."""
+    heur = P.Xs["train"][heuristic_col()]
+    y, months = P.ys["train"], P.labels.months["train"]
+    out = {"prior": [], "route_history": []}
+    for tr, va in models.rolling_folds(months):
+        rate = y[tr].mean()
+        out["prior"].append(average_precision_score(y[va], np.full(len(va), rate)))
+        out["route_history"].append(average_precision_score(y[va], heur.iloc[va].fillna(rate)))
+    return {k: pd.Series(v, index=config.CV_VAL_MONTHS) for k, v in out.items()}
+
+
+CV_LABELS = {
+    "prior": "Prior (base rate)", "route_history": "Route history",
+    "logreg": "LogReg (as deployed)",
+    "xgboost": "XGBoost (as deployed, fixed trees)",
+    "xgboost_infold_early_stopping": "XGBoost (in-fold early stopping, optimistic; not used)",
+}
+
+
+def cv_table(cv: dict) -> pd.DataFrame:
+    """Rolling-CV PR-AUC per model and fold (raw scores: CV never recalibrates)."""
+    rows = [{"model": CV_LABELS[k], "calibration": "none" if k in ("prior", "route_history")
+             else "raw", "variant": k, "cv_pr_auc_mean": cv[k]["mean"],
+             "cv_pr_auc_std": cv[k]["std"],
+             **{f"fold_m{m}": v for m, v in zip(config.CV_VAL_MONTHS, cv[k]["folds"])}}
+            for k in CV_LABELS]
+    return pd.DataFrame(rows)
+
+
+def paired_cv_difference(cv: dict, a: str = "logreg", b: str = "xgboost") -> dict:
+    """Per-fold PR-AUC difference a - b (same folds, so the fold-to-fold month
+    effect cancels), with its mean, sd and the number of folds a wins."""
+    d = np.asarray(cv[a]["folds"]) - np.asarray(cv[b]["folds"])
+    return {"diffs": [float(x) for x in d], "mean": float(d.mean()), "std": float(d.std(ddof=1)),
+            "folds_a_better": int((d > 0).sum()), "n_folds": int(len(d))}
 
 
 def select_final_model(cv: dict) -> str:
