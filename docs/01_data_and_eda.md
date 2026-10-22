@@ -16,7 +16,7 @@ Dataset: `nycflights13`, 336,776 departures from EWR, JFK and LGA in 2013.
 | missing tailnum | 2512 |
 | missing tailnum AND cancelled | 2512 |
 
-Missing values are **structural**: no `dep_time` means cancelled (8,255 flights); departed but no `arr_delay` means diverted (1,175); every missing `tailnum` is a cancellation. Nothing is imputed.
+Missing values are **structural**: no `dep_time` means cancelled (8,255 flights); departed but no `arr_delay` means diverted (1,175); every missing `tailnum` is a cancellation. Arrival-delay answers are not imputed. The raw EDA retains missing values; later, Logistic Regression median-imputes derived numeric predictors and adds missingness indicators. XGBoost handles numeric missing values natively.
 
 | check | value |
 |---|---|
@@ -48,7 +48,7 @@ Two routes have more than one distance. Both go to EGE and both change by exactl
 
 ## When are flights late? (notebook §5)
 
-* **Time of day:** delay rate 10.5% at 5:00 rising to 37.4% at 21:00 (delay propagates through the day).
+* **Time of day:** delay rate 10.5% at 5:00 rising to 37.4% at 21:00 (an association consistent with accumulating disruption; this EDA does not isolate its cause).
 * **Season:** monthly rates range from 13.7% (month 9) to 33.5% (month 12). Sep–Oct are calm, December is extreme, which makes the chronological split a built-in stress test.
 * **Carrier:** rates range from 12.9% to 38.8%; several carriers are tiny (OO has 29 flights).
 
@@ -66,7 +66,7 @@ Lag-1 autocorrelation of the daily delay rate is **0.398**, falling to about 0.1
 
 ![eda_congestion](../figures/eda_congestion.png)
 
-Splitting departure banks into terciles **within each hour** holds the hour fixed: the busiest third is **4.5 percentage points** later than the quietest, and later in 13 of 16 hours. So congestion matters beyond time of day.
+Splitting departure banks into terciles **within each hour** holds the hour fixed: the busiest third is **4.5 percentage points** later than the quietest, and later in 13 of 16 hours. The association remains within departure-hour groups; this does not establish a causal congestion effect.
 
 ![eda_congestion_within_hour](../figures/eda_congestion_within_hour.png)
 
