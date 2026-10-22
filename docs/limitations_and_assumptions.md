@@ -4,11 +4,11 @@
 
 ## Limitations
 
-* **No weather, by design.** Observed weather for day D would **leak at the 20:00 D-1 decision clock**: it is not known then. Weather could only be added from **archived forecasts issued before 20:00 on D-1**, never from observations. It is the main missing driver of day-to-day delays.
+* **No weather, by design.** Observed weather for day D would **leak at the 20:00 D-1 decision clock**: it is not known then. Weather could only be added from **archived forecasts issued before 20:00 on D-1**, never from observations. Forecast weather is a potentially useful missing predictor; these experiments do not measure its contribution.
 * **Single year, three origins.** The **chronological split is retained** (train on the past, test on the future), but a single year (2013) and three NYC origins **cannot establish cross-year or cross-airport generalisation**: each season and airport effect is observed once.
-* **Strong covariate shift** between train and later months (adversarial AUC near 1.0 with history features; [04](04_evaluation.md)), which breaks a frozen calibrator.
+* **Calibration deteriorates in December.** PSI and row-level adversarial validation describe period differences ([04](04_evaluation.md)); they do not demonstrate that those differences caused the error. Repeated daily features also limit the interpretation of row-split adversarial scores.
 * **Partial aircraft rotation:** only outbound NYC legs are visible.
-* **LogReg and XGBoost are not statistically distinguished**; the final-model choice rests on a pre-declared rule.
+* **The model comparison does not establish equivalence or noninferiority.** LogReg is selected by higher development CV AP; the test difference interval includes zero. Four development folds and prior test exposure limit the conclusion.
 * **Test was not perfectly clean** ([development protocol](development_protocol.md)).
 
 ## Assumptions
