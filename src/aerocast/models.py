@@ -13,16 +13,33 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from xgboost import XGBClassifier
 
-from . import config
+from . import config, data
 
 
 # ---------------------------------------------------------------------------
 # Rolling-origin folds
 # ---------------------------------------------------------------------------
-def rolling_folds(months: np.ndarray, val_months=config.CV_VAL_MONTHS):
-    """Yield (train_idx, val_idx): train on months < m, validate on month m."""
+def rolling_folds(months: np.ndarray, val_months=config.CV_VAL_MONTHS, *,
+                  dates, avail_dates, selection_date=config.SPLITS["calib"][0]):
+    """Forward folds with labels available at fitting and selection time.
+
+    A fold is fitted at the decision clock for its first validation date.
+    Validation labels can be scored retrospectively, but only if available
+    when the CV-selected model is needed (the first calibration date).
+    """
+    months = np.asarray(months)
+    dates = pd.to_datetime(pd.Series(dates)).to_numpy()
+    scoreable = data.outcomes_available_by(avail_dates, selection_date)
     for m in val_months:
-        yield np.flatnonzero(months < m), np.flatnonzero(months == m)
+        va = np.flatnonzero(months == m)
+        if not len(va):
+            raise ValueError(f"No validation rows for month {m}")
+        known = data.outcomes_available_by(avail_dates, dates[va].min())
+        tr = np.flatnonzero((months < m) & known)
+        va = va[scoreable[va]]
+        if not len(tr) or not len(va):
+            raise ValueError(f"No available fitting or validation labels for month {m}")
+        yield tr, va
 
 
 # ---------------------------------------------------------------------------
@@ -59,10 +76,10 @@ def make_logreg(cat_cols: list[str], num_cols: list[str], C: float = 1.0) -> Pip
 LOGREG_CS = (0.0003, 0.001, 0.003, 0.01, 0.1, 1.0)
 
 
-def cv_logreg(X, y, months, cat_cols, num_cols, Cs=LOGREG_CS):
+def cv_logreg(X, y, months, cat_cols, num_cols, Cs=LOGREG_CS, *, dates, avail_dates):
     rows = []
     for C in Cs:
-        for k, (tr, va) in enumerate(rolling_folds(months)):
+        for k, (tr, va) in enumerate(rolling_folds(months, dates=dates, avail_dates=avail_dates)):
             model = make_logreg(cat_cols, num_cols, C).fit(X.iloc[tr], y[tr])
             ap = average_precision_score(y[va], model.predict_proba(X.iloc[va])[:, 1])
             rows.append({"C": C, "fold": k, "val_pr_auc": ap})
@@ -104,7 +121,7 @@ def make_xgb(n_estimators: int = 3000, early_stopping: bool = True, **params) ->
     return XGBClassifier(**base)
 
 
-def cv_xgb(X, y, months, grid=XGB_GRID, n_configs: int | None = 16):
+def cv_xgb(X, y, months, grid=XGB_GRID, n_configs: int | None = 16, *, dates, avail_dates):
     """Rolling-origin search. For each config and fold, early-stop on that
     fold's validation month; score = mean fold PR-AUC; n_trees = mean of the
     fold-wise best iterations (used to refit on the full training window).
@@ -117,7 +134,7 @@ def cv_xgb(X, y, months, grid=XGB_GRID, n_configs: int | None = 16):
 
     rows = []
     for ci, params in enumerate(configs):
-        for k, (tr, va) in enumerate(rolling_folds(months)):
+        for k, (tr, va) in enumerate(rolling_folds(months, dates=dates, avail_dates=avail_dates)):
             model = make_xgb(**params).fit(
                 X.iloc[tr], y[tr], eval_set=[(X.iloc[va], y[va])], verbose=False
             )
@@ -138,21 +155,22 @@ def fit_xgb_final(X, y, params: dict) -> XGBClassifier:
     return make_xgb(early_stopping=False, **params).fit(X, y, verbose=False)
 
 
-def cv_score_features_logreg(X, y, months, cols, cat_cols, C: float) -> pd.Series:
+def cv_score_features_logreg(X, y, months, cols, cat_cols, C: float, *,
+                             dates, avail_dates) -> pd.Series:
     """Fold-wise PR-AUC for a fixed LogReg C on a feature subset (ablation)."""
     cats = [c for c in cols if c in cat_cols]
     nums = [c for c in cols if c not in cat_cols]
     scores = []
-    for tr, va in rolling_folds(months):
+    for tr, va in rolling_folds(months, dates=dates, avail_dates=avail_dates):
         model = make_logreg(cats, nums, C).fit(X.iloc[tr][cols], y[tr])
         scores.append(average_precision_score(y[va], model.predict_proba(X.iloc[va][cols])[:, 1]))
     return pd.Series(scores, index=config.CV_VAL_MONTHS)
 
 
-def cv_score_features(X, y, months, cols, params: dict) -> pd.Series:
+def cv_score_features(X, y, months, cols, params: dict, *, dates, avail_dates) -> pd.Series:
     """Fold-wise PR-AUC for a fixed XGB config on a feature subset (ablation)."""
     scores = []
-    for tr, va in rolling_folds(months):
+    for tr, va in rolling_folds(months, dates=dates, avail_dates=avail_dates):
         model = fit_xgb_final(X.iloc[tr][cols], y[tr], params)
         scores.append(average_precision_score(y[va], model.predict_proba(X.iloc[va][cols])[:, 1]))
     return pd.Series(scores, index=config.CV_VAL_MONTHS)
