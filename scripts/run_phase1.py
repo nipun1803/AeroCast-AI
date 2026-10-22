@@ -157,6 +157,18 @@ def main(quick: bool = False):
         "decision_time": f"{config.DECISION_HOUR}:00 NYC on D-1; outcomes enter history once known",
         "target": f"arr_delay >= {config.DELAY_THRESHOLD_MIN} min; cancelled/diverted dropped",
         "splits": P.split_summary(),
+        "fitting_clock": {
+            "model_ready_for": config.SPLITS["calib"][0],
+            "train_labels_used": int(P.train_fit_mask.sum()),
+            "train_labels_excluded": int((~P.train_fit_mask).sum()),
+            "calibrator_and_threshold_ready_for": config.SPLITS["test"][0],
+            "calibration_labels_used": int(P.labels.available_mask(
+                "calib", config.SPLITS["test"][0]).sum()),
+            "calibration_labels_excluded": int((~P.labels.available_mask(
+                "calib", config.SPLITS["test"][0])).sum()),
+            "cv": "fit labels available at first validation day's D-1 clock; "
+                  "score/selection labels available before first calibration prediction",
+        },
         "cv_val_months": config.CV_VAL_MONTHS,
         "history_settings": history_choice,
         "n_features": len(P.feat_cols),
