@@ -101,6 +101,10 @@ class Labels:
         """Concatenate an attribute over train, calib, test (chronological)."""
         return np.concatenate([getattr(self, attr)[s] for s in config.SPLITS])
 
+    def available_mask(self, split: str, target_date) -> np.ndarray:
+        """Which split labels are known at the clock for a target date."""
+        return data.outcomes_available_by(self.avail[split], target_date)
+
 
 @dataclass
 class Prepared:
@@ -127,6 +131,15 @@ class Prepared:
     @property
     def ys(self) -> dict[str, np.ndarray]:
         return self.labels.y
+
+    @property
+    def train_fit_mask(self) -> np.ndarray:
+        """The model must be fitted before the first calibration prediction."""
+        return self.labels.available_mask("train", config.SPLITS["calib"][0])
+
+    @property
+    def cv_timing(self) -> dict:
+        return {"dates": self.labels.dates["train"], "avail_dates": self.labels.avail["train"]}
 
     def split_summary(self) -> dict:
         return {
@@ -156,7 +169,9 @@ def prepare(target: str = "arr15", raw: pd.DataFrame | None = None,
 
     feat_cols = groups["categorical"] + [c for g, cols in groups.items()
                                          if g != "categorical" for c in cols]
-    avail = data.available_date(meta["arr_known_dt"]).to_numpy()
+    avail = data.target_available_date(
+        meta, target, (features_kw or {}).get("decision_hour", config.DECISION_HOUR)
+    ).to_numpy()
     labels = Labels(
         y={s: y[i] for s, i in idx.items()},
         months={s: meta["month"].iloc[i].to_numpy() for s, i in idx.items()},
@@ -189,7 +204,7 @@ def tune_history(raw: pd.DataFrame) -> pd.DataFrame:
     for m, L, hour in combos:
         P = prepare(raw=raw, features_kw={"m": m, "long_window": L, "decision_hour": hour})
         best_C, cv = models.cv_logreg(P.Xs["train"], P.ys["train"], P.labels.months["train"],
-                                      P.cat_cols, P.num_cols)
+                                      P.cat_cols, P.num_cols, **P.cv_timing)
         by_C = cv.groupby("C")["val_pr_auc"].agg(["mean", "std"])
         folds = cv[cv.C == best_C].set_index("fold")["val_pr_auc"]
         rows.append({"smoothing_m": m, "long_window": L, "decision_hour": hour,
@@ -224,10 +239,10 @@ def month_feature_cv(P: Prepared, C: float, xgb_params: dict) -> pd.DataFrame:
         for model in MODELS:
             if model == "logreg":
                 cv = models.cv_score_features_logreg(Xm, P.ys["train"], P.labels.months["train"],
-                                                     cols, P.cat_cols, C)
+                                                     cols, P.cat_cols, C, **P.cv_timing)
             else:
                 cv = models.cv_score_features(Xm, P.ys["train"], P.labels.months["train"],
-                                              cols, xgb_params)
+                                              cols, xgb_params, **P.cv_timing)
             rows.append({"features": label, "model": model,
                          **{f"fold_m{k}": v for k, v in cv.items()},
                          "cv_pr_auc_mean": cv.mean()})
@@ -239,7 +254,7 @@ def month_feature_cv(P: Prepared, C: float, xgb_params: dict) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 def baseline_preds(P: Prepared) -> dict[str, dict[str, np.ndarray]]:
     """Constant train base rate, and the long-window carrier-route history rate."""
-    base_rate = P.ys["train"].mean()
+    base_rate = P.ys["train"][P.train_fit_mask].mean()
     return {
         "prior": {s: np.full(len(P.ys[s]), base_rate) for s in P.idx},
         "route_history": {s: P.Xs[s][heuristic_col()].fillna(base_rate).to_numpy()
@@ -259,10 +274,12 @@ class LogRegResult:
 
 
 def train_logreg(P: Prepared) -> LogRegResult:
-    """Rolling-origin CV over C, then refit on all of Jan-Aug."""
+    """CV over C, then fit labels known before September's first prediction."""
     best_C, cv = models.cv_logreg(P.Xs["train"], P.ys["train"], P.labels.months["train"],
-                                  P.cat_cols, P.num_cols)
-    model = models.make_logreg(P.cat_cols, P.num_cols, best_C).fit(P.Xs["train"], P.ys["train"])
+                                  P.cat_cols, P.num_cols, **P.cv_timing)
+    fit = P.train_fit_mask
+    model = models.make_logreg(P.cat_cols, P.num_cols, best_C).fit(
+        P.Xs["train"].loc[fit], P.ys["train"][fit])
     return LogRegResult(model, best_C, cv)
 
 
@@ -276,10 +293,11 @@ class XGBResult:
 
 def train_xgb(P: Prepared, n_configs: int = 16) -> XGBResult:
     """Rolling-origin config search (tree count from fold early stopping),
-    then refit on all of Jan-Aug with the averaged tree count."""
+    then refit available Jan-Aug labels with the averaged tree count."""
     params, folds, agg = models.cv_xgb(P.Xs["train"], P.ys["train"], P.labels.months["train"],
-                                       n_configs=n_configs)
-    model = models.fit_xgb_final(P.Xs["train"], P.ys["train"], params)
+                                       n_configs=n_configs, **P.cv_timing)
+    fit = P.train_fit_mask
+    model = models.fit_xgb_final(P.Xs["train"].loc[fit], P.ys["train"][fit], params)
     return XGBResult(model, params, folds, agg.sort_values("mean_pr_auc", ascending=False))
 
 
@@ -295,7 +313,7 @@ def cv_summary(lr: LogRegResult, xgb: XGBResult, P: Prepared) -> dict:
     lr_s = lr.cv[lr.cv.C == lr.C].set_index("fold")["val_pr_auc"]
     base = baseline_cv(P)
     fixed = models.cv_score_features(P.Xs["train"], P.ys["train"], P.labels.months["train"],
-                                     P.feat_cols, xgb.params)
+                                     P.feat_cols, xgb.params, **P.cv_timing)
     best = xgb.cv_configs.index[0]
     es = xgb.cv_folds[xgb.cv_folds.config == best]["val_pr_auc"]
     return {
@@ -316,7 +334,7 @@ def baseline_cv(P: Prepared) -> dict[str, pd.Series]:
     heur = P.Xs["train"][heuristic_col()]
     y, months = P.ys["train"], P.labels.months["train"]
     out = {"prior": [], "route_history": []}
-    for tr, va in models.rolling_folds(months):
+    for tr, va in models.rolling_folds(months, **P.cv_timing):
         rate = y[tr].mean()
         out["prior"].append(average_precision_score(y[va], np.full(len(va), rate)))
         out["route_history"].append(average_precision_score(y[va], heur.iloc[va].fillna(rate)))
@@ -363,8 +381,9 @@ def single_month_tree_curve(P: Prepared, params: dict, max_trees: int = 800,
     """Diagnostic for the abandoned design: PR-AUC on Sep and on Oct as a
     function of the number of boosting rounds (model fit on Jan-Aug)."""
     p = {k: v for k, v in params.items() if k != "n_estimators"}
+    fit = P.train_fit_mask
     model = models.make_xgb(n_estimators=max_trees, early_stopping=False, **p).fit(
-        P.Xs["train"], P.ys["train"], verbose=False)
+        P.Xs["train"].loc[fit], P.ys["train"][fit], verbose=False)
     cal = P.Xs["calib"]
     months = P.labels.months["calib"]
     rows = []
@@ -381,7 +400,7 @@ def single_month_tree_curve(P: Prepared, params: dict, max_trees: int = 800,
 # Calibration & evaluation (inputs: raw scores + Labels only)
 # ---------------------------------------------------------------------------
 def calibrate(labels: Labels, raw_preds: dict) -> tuple[dict, dict, pd.DataFrame]:
-    """Static variants raw / Platt / isotonic (fit on all of Sep-Oct), causal
+    """Static variants raw / Platt / isotonic (fit on available Sep-Oct labels), causal
     rolling Platt for N in ROLLING_CALIB_SENSITIVITY (calib + test only), and
     ``<model>_rule_selected`` = the variant chosen by the a-priori margin rule
     (``evaluate.select_calibrator``: fit Sep -> check Oct)."""
@@ -390,13 +409,17 @@ def calibrate(labels: Labels, raw_preds: dict) -> tuple[dict, dict, pd.DataFrame
     pool_dates, pool_avail, pool_y = (labels.pooled("dates"), labels.pooled("avail"),
                                       labels.pooled("y"))
     eval_dates = np.concatenate([labels.dates["calib"], labels.dates["test"]])
+    selection_date = config.SPLITS["test"][0]
+    fit = labels.available_mask("calib", selection_date)
     choice, tables = {}, []
     for m in MODELS:
         p_cal = raw_preds[m]["calib"]
-        choice[m], tbl = evaluate.select_calibrator(p_cal, y_cal, m_cal, 9, 10)
+        choice[m], tbl = evaluate.select_calibrator(
+            p_cal, y_cal, m_cal, 9, 10, dates=labels.dates["calib"],
+            avail_dates=labels.avail["calib"], selection_date=selection_date)
         tables.append(tbl.assign(model=m))
         for tag, cls in evaluate.CALIBRATORS.items():
-            fitted = cls().fit(p_cal, y_cal)
+            fitted = cls().fit(p_cal[fit], y_cal[fit])
             final[f"{m}_{tag}"] = {s: fitted.predict(raw_preds[m][s]) for s in raw_preds[m]}
         final[f"{m}_rule_selected"] = final[f"{m}_{choice[m]}"]
         pool_scores = np.concatenate([raw_preds[m][s] for s in config.SPLITS])
@@ -410,8 +433,9 @@ def calibrate(labels: Labels, raw_preds: dict) -> tuple[dict, dict, pd.DataFrame
 
 
 def frozen_thresholds(labels: Labels, final_preds: dict) -> dict[str, float]:
-    """Precision-target threshold chosen on Sep-Oct (inf if unreachable)."""
-    return {n: evaluate.threshold_for_precision(labels.y["calib"], p["calib"])
+    """Threshold chosen from labels known before the first test prediction."""
+    fit = labels.available_mask("calib", config.SPLITS["test"][0])
+    return {n: evaluate.threshold_for_precision(labels.y["calib"][fit], p["calib"][fit])
             for n, p in final_preds.items()}
 
 
@@ -575,6 +599,7 @@ def ablation(P: Prepared, C: float, xgb_params: dict,
     difference with a paired day-block bootstrap 95% CI is confirmation.
     """
     sets = ablation_sets(P)
+    fit = P.train_fit_mask
     rows, preds, folds = [], {}, {}
     # reference rows: the two baselines scored on the same folds / test set
     base_cv = baseline_cv(P)
@@ -590,14 +615,16 @@ def ablation(P: Prepared, C: float, xgb_params: dict,
         for set_name, cols in sets.items():
             if model == "logreg":
                 cv = models.cv_score_features_logreg(P.Xs["train"], P.ys["train"],
-                                                     P.labels.months["train"], cols, P.cat_cols, C)
+                                                     P.labels.months["train"], cols, P.cat_cols, C,
+                                                     **P.cv_timing)
                 cats = [c for c in cols if c in P.cat_cols]
                 mdl = models.make_logreg(cats, [c for c in cols if c not in cats], C).fit(
-                    P.Xs["train"][cols], P.ys["train"])
+                    P.Xs["train"].loc[fit, cols], P.ys["train"][fit])
             else:
                 cv = models.cv_score_features(P.Xs["train"], P.ys["train"],
-                                              P.labels.months["train"], cols, xgb_params)
-                mdl = models.fit_xgb_final(P.Xs["train"][cols], P.ys["train"], xgb_params)
+                                              P.labels.months["train"], cols, xgb_params,
+                                              **P.cv_timing)
+                mdl = models.fit_xgb_final(P.Xs["train"].loc[fit, cols], P.ys["train"][fit], xgb_params)
             p = mdl.predict_proba(P.Xs["test"][cols])[:, 1]
             preds[model, set_name], folds[model, set_name] = p, cv
             rows.append({"model": FAMILY[model], "calibration": "raw", "features": set_name,
@@ -662,8 +689,10 @@ def target_sensitivity(main: Prepared, main_raw: dict, C: float, xgb_params: dic
     flights counted as delayed, and compare raw-score test metrics and the
     primary policy with the main target. Features are unchanged."""
     alt = prepare(target="arr15_or_cancel", raw=main.raw)
-    lr = models.make_logreg(alt.cat_cols, alt.num_cols, C).fit(alt.Xs["train"], alt.ys["train"])
-    xg = models.fit_xgb_final(alt.Xs["train"], alt.ys["train"], xgb_params)
+    fit = alt.train_fit_mask
+    lr = models.make_logreg(alt.cat_cols, alt.num_cols, C).fit(
+        alt.Xs["train"].loc[fit], alt.ys["train"][fit])
+    xg = models.fit_xgb_final(alt.Xs["train"].loc[fit], alt.ys["train"][fit], xgb_params)
     alt_raw = {"logreg": lr.predict_proba(alt.Xs["test"])[:, 1],
                "xgboost": xg.predict_proba(alt.Xs["test"])[:, 1]}
     rows = []
