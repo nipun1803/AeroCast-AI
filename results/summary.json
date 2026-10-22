@@ -29,7 +29,8 @@
   ],
   "history_settings": {
     "smoothing_m": 5,
-    "long_window": 14
+    "long_window": 14,
+    "C": 0.1
   },
   "n_features": 45,
   "feature_groups": {
@@ -41,8 +42,23 @@
   },
   "final_model": {
     "model": "logreg",
-    "rule": "higher mean rolling-CV PR-AUC",
+    "variant": "LogReg (Platt, rule-selected)",
+    "calibration": "Platt (rule-selected)",
+    "rule": "higher mean rolling-CV PR-AUC, each model scored as deployed",
     "fixed_before_test": true
+  },
+  "model_comparison_note": "LogReg and XGBoost are not statistically distinguished: rolling-CV fold sd is about 0.07 for both, and the test day-block bootstrap CI of XGBoost - LogReg includes 0. The final-model choice rests on the rule declared before test.",
+  "cv_paired_logreg_minus_xgboost": {
+    "diffs": [
+      0.030992554674985517,
+      0.07456962017498725,
+      -0.0007341949218325761,
+      -0.0027349000829545167
+    ],
+    "mean": 0.02552326996129642,
+    "std": 0.03616368427442995,
+    "folds_a_better": 2,
+    "n_folds": 4
   },
   "xgb_params": {
     "max_depth": 2,
@@ -85,6 +101,26 @@
         0.5573653139400805,
         0.399461400392114
       ]
+    },
+    "prior": {
+      "mean": 0.27748450481038267,
+      "std": 0.048258611659566,
+      "folds": [
+        0.22667804323094426,
+        0.3152354570637119,
+        0.3220584596896759,
+        0.2459660592571985
+      ]
+    },
+    "route_history": {
+      "mean": 0.3476264679625607,
+      "std": 0.06010673201849813,
+      "folds": [
+        0.2766037112778069,
+        0.39108360620767657,
+        0.4033960084810527,
+        0.31942254588370667
+      ]
     }
   },
   "calibration_rule": "raw unless Platt/isotonic (fit Sep) lowers Oct ECE by > 0.005",
@@ -95,7 +131,8 @@
   "rolling_calibration_days": 28,
   "primary_policy_test": {
     "policy": "daily top 10%",
-    "model": "logreg_cal",
+    "model": "LogReg (Platt, rule-selected)",
+    "calibration": "Platt (rule-selected)",
     "precision": 0.4443625644804716,
     "recall": 0.17295281801233328,
     "lift": 1.7203197489506052,
@@ -103,7 +140,9 @@
   },
   "test": [
     {
-      "model": "prior",
+      "model": "Prior (base rate)",
+      "calibration": "none",
+      "variant": "prior",
       "pr_auc": 0.2583023096442,
       "roc_auc": 0.5,
       "brier": 0.19162568797610677,
@@ -116,7 +155,9 @@
       "oracle_recall@p0.50": 0.0
     },
     {
-      "model": "route_history",
+      "model": "Route history",
+      "calibration": "none (smoothed rate)",
+      "variant": "route_history",
       "pr_auc": 0.3534050383910727,
       "roc_auc": 0.6208306553950841,
       "brier": 0.18693607649854127,
@@ -129,7 +170,24 @@
       "oracle_recall@p0.50": 0.016277068693532196
     },
     {
-      "model": "logreg_cal",
+      "model": "LogReg (raw)",
+      "calibration": "raw",
+      "variant": "logreg_raw",
+      "pr_auc": 0.39369508345052817,
+      "roc_auc": 0.6537039456024277,
+      "brier": 0.18113513311588286,
+      "ece": 0.019027010158476798,
+      "ece_equal_mass": 0.02162745933092912,
+      "mean_pred": 0.2580957054122526,
+      "base_rate": 0.2583023096442,
+      "oracle_recall@p0.30": 0.8469095081026817,
+      "oracle_recall@p0.40": 0.43030259572637314,
+      "oracle_recall@p0.50": 0.12942779291553133
+    },
+    {
+      "model": "LogReg (Platt, rule-selected)",
+      "calibration": "Platt (rule-selected)",
+      "variant": "logreg_rule_selected",
       "pr_auc": 0.39369508345052817,
       "roc_auc": 0.6537039456024277,
       "brier": 0.18722156226553238,
@@ -142,7 +200,24 @@
       "oracle_recall@p0.50": 0.12942779291553133
     },
     {
-      "model": "xgboost_cal",
+      "model": "LogReg (rolling Platt 28d)",
+      "calibration": "rolling Platt 28d (causal)",
+      "variant": "logreg_rolling28",
+      "pr_auc": 0.39175796363091975,
+      "roc_auc": 0.6574749577670196,
+      "brier": 0.18090206434702366,
+      "ece": 0.026947552669555543,
+      "ece_equal_mass": 0.02647363082123989,
+      "mean_pred": 0.23182867882296004,
+      "base_rate": 0.2583023096442,
+      "oracle_recall@p0.30": 0.8703570916391797,
+      "oracle_recall@p0.40": 0.43202351928868493,
+      "oracle_recall@p0.50": 0.12032123906496486
+    },
+    {
+      "model": "XGBoost (raw, rule-selected)",
+      "calibration": "raw (rule-selected)",
+      "variant": "xgboost_rule_selected",
       "pr_auc": 0.4069939111958724,
       "roc_auc": 0.6619216161468428,
       "brier": 0.17970670759677887,
@@ -153,6 +228,21 @@
       "oracle_recall@p0.30": 0.8632582819446436,
       "oracle_recall@p0.40": 0.4739710311200344,
       "oracle_recall@p0.50": 0.1613365839667288
+    },
+    {
+      "model": "XGBoost (rolling Platt 28d)",
+      "calibration": "rolling Platt 28d (causal)",
+      "variant": "xgboost_rolling28",
+      "pr_auc": 0.3959892092619889,
+      "roc_auc": 0.6594625709421229,
+      "brier": 0.1803254649348371,
+      "ece": 0.024084462894646174,
+      "ece_equal_mass": 0.02312961864596611,
+      "mean_pred": 0.24444149915152735,
+      "base_rate": 0.2583023096442,
+      "oracle_recall@p0.30": 0.8740140542090922,
+      "oracle_recall@p0.40": 0.415889860892012,
+      "oracle_recall@p0.50": 0.12182704718198767
     }
   ],
   "oracle_metric_note": "oracle_recall@p tunes the threshold on the test labels: curve metric for model comparison only",
@@ -190,18 +280,74 @@
   },
   "operating_policies": [
     {
-      "model": "route_history",
+      "variant": "prior",
+      "calibration": "none",
+      "model": "Prior (base rate)",
       "split": "calib",
       "role": "primary",
       "policy": "daily top 10%",
       "flag_rate": 0.10047098583447185,
-      "precision": 0.23277867239219896,
-      "recall": 0.14900927728782498,
-      "lift": 1.483107546424607,
+      "precision": 0.15333691179101808,
+      "recall": 0.09815599587676097,
+      "lift": 0.9769586220491071,
       "threshold": NaN
     },
     {
-      "model": "route_history",
+      "variant": "prior",
+      "calibration": "none",
+      "model": "Prior (base rate)",
+      "split": "calib",
+      "role": "secondary",
+      "policy": "frozen thr for P>=0.4 (from Sep-Oct)",
+      "flag_rate": 0.0,
+      "precision": NaN,
+      "recall": 0.0,
+      "lift": NaN,
+      "threshold": Infinity
+    },
+    {
+      "variant": "prior",
+      "calibration": "none",
+      "model": "Prior (base rate)",
+      "split": "test",
+      "role": "primary",
+      "policy": "daily top 10%",
+      "flag_rate": 0.10053527439758478,
+      "precision": 0.24299926308032424,
+      "recall": 0.09457909077871791,
+      "lift": 0.9407552855994397,
+      "threshold": NaN
+    },
+    {
+      "variant": "prior",
+      "calibration": "none",
+      "model": "Prior (base rate)",
+      "split": "test",
+      "role": "secondary",
+      "policy": "frozen thr for P>=0.4 (from Sep-Oct)",
+      "flag_rate": 0.0,
+      "precision": NaN,
+      "recall": 0.0,
+      "lift": NaN,
+      "threshold": Infinity
+    },
+    {
+      "variant": "route_history",
+      "calibration": "none (smoothed rate)",
+      "model": "Route history",
+      "split": "calib",
+      "role": "primary",
+      "policy": "daily top 10%",
+      "flag_rate": 0.10047098583447185,
+      "precision": 0.2317051350867776,
+      "recall": 0.14832207078227008,
+      "lift": 1.4762676960952084,
+      "threshold": NaN
+    },
+    {
+      "variant": "route_history",
+      "calibration": "none (smoothed rate)",
+      "model": "Route history",
       "split": "calib",
       "role": "secondary",
       "policy": "frozen thr for P>=0.4 (from Sep-Oct)",
@@ -212,18 +358,22 @@
       "threshold": 0.46890697626659184
     },
     {
-      "model": "route_history",
+      "variant": "route_history",
+      "calibration": "none (smoothed rate)",
+      "model": "Route history",
       "split": "test",
       "role": "primary",
       "policy": "daily top 10%",
       "flag_rate": 0.10053527439758478,
-      "precision": 0.3588798820928519,
-      "recall": 0.13968162914097232,
-      "lift": 1.3893792997329102,
+      "precision": 0.35814296241709653,
+      "recall": 0.1393948085472537,
+      "lift": 1.386526364825861,
       "threshold": NaN
     },
     {
-      "model": "route_history",
+      "variant": "route_history",
+      "calibration": "none (smoothed rate)",
+      "model": "Route history",
       "split": "test",
       "role": "secondary",
       "policy": "frozen thr for P>=0.4 (from Sep-Oct)",
@@ -234,7 +384,9 @@
       "threshold": 0.46890697626659184
     },
     {
-      "model": "logreg_cal",
+      "variant": "logreg_rule_selected",
+      "calibration": "Platt (rule-selected)",
+      "model": "LogReg (Platt, rule-selected)",
       "split": "calib",
       "role": "primary",
       "policy": "daily top 10%",
@@ -245,7 +397,9 @@
       "threshold": NaN
     },
     {
-      "model": "logreg_cal",
+      "variant": "logreg_rule_selected",
+      "calibration": "Platt (rule-selected)",
+      "model": "LogReg (Platt, rule-selected)",
       "split": "calib",
       "role": "secondary",
       "policy": "frozen thr for P>=0.4 (from Sep-Oct)",
@@ -256,7 +410,9 @@
       "threshold": 0.3312401987503297
     },
     {
-      "model": "logreg_cal",
+      "variant": "logreg_rule_selected",
+      "calibration": "Platt (rule-selected)",
+      "model": "LogReg (Platt, rule-selected)",
       "split": "test",
       "role": "primary",
       "policy": "daily top 10%",
@@ -267,7 +423,9 @@
       "threshold": NaN
     },
     {
-      "model": "logreg_cal",
+      "variant": "logreg_rule_selected",
+      "calibration": "Platt (rule-selected)",
+      "model": "LogReg (Platt, rule-selected)",
       "split": "test",
       "role": "secondary",
       "policy": "frozen thr for P>=0.4 (from Sep-Oct)",
@@ -278,7 +436,9 @@
       "threshold": 0.3312401987503297
     },
     {
-      "model": "xgboost_cal",
+      "variant": "xgboost_rule_selected",
+      "calibration": "raw (rule-selected)",
+      "model": "XGBoost (raw, rule-selected)",
       "split": "calib",
       "role": "primary",
       "policy": "daily top 10%",
@@ -289,7 +449,9 @@
       "threshold": NaN
     },
     {
-      "model": "xgboost_cal",
+      "variant": "xgboost_rule_selected",
+      "calibration": "raw (rule-selected)",
+      "model": "XGBoost (raw, rule-selected)",
       "split": "calib",
       "role": "secondary",
       "policy": "frozen thr for P>=0.4 (from Sep-Oct)",
@@ -300,18 +462,22 @@
       "threshold": 0.44610536098480225
     },
     {
-      "model": "xgboost_cal",
+      "variant": "xgboost_rule_selected",
+      "calibration": "raw (rule-selected)",
+      "model": "XGBoost (raw, rule-selected)",
       "split": "test",
       "role": "primary",
       "policy": "daily top 10%",
       "flag_rate": 0.10053527439758478,
-      "precision": 0.43478260869565216,
-      "recall": 0.1692241502939911,
-      "lift": 1.683231595158967,
+      "precision": 0.4345983787767133,
+      "recall": 0.16915244514556146,
+      "lift": 1.6825183614322048,
       "threshold": NaN
     },
     {
-      "model": "xgboost_cal",
+      "variant": "xgboost_rule_selected",
+      "calibration": "raw (rule-selected)",
+      "model": "XGBoost (raw, rule-selected)",
       "split": "test",
       "role": "secondary",
       "policy": "frozen thr for P>=0.4 (from Sep-Oct)",
