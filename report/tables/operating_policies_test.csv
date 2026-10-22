@@ -1,0 +1,9 @@
+calibration,model,role,policy,flag_rate,precision,recall,lift,threshold
+none,Prior (base rate),primary,daily top 10%,0.1005352743975847,0.2429992630803242,0.0945790907787179,0.9407552855994396,
+none,Prior (base rate),secondary,frozen thr for P>=0.4 (from Sep-Oct),0.0,,0.0,,inf
+none (smoothed rate),Route history,primary,daily top 10%,0.1005352743975847,0.3581429624170965,0.1393948085472537,1.386526364825861,
+none (smoothed rate),Route history,secondary,frozen thr for P>=0.4 (from Sep-Oct),0.0588246189179678,0.4250629722921914,0.0968019503800372,1.6456026772571135,0.4689069762665918
+Platt (rule-selected),"LogReg (Platt, rule-selected)",primary,daily top 10%,0.1005352743975847,0.4443625644804716,0.1729528180123332,1.7203197489506052,
+Platt (rule-selected),"LogReg (Platt, rule-selected)",secondary,frozen thr for P>=0.4 (from Sep-Oct),0.0746605915800781,0.4934259488960555,0.1426215402265882,1.9102653382222097,0.3312401987503297
+raw (rule-selected),"XGBoost (raw, rule-selected)",primary,daily top 10%,0.1005352743975847,0.4345983787767133,0.1691524451455614,1.6825183614322048,
+raw (rule-selected),"XGBoost (raw, rule-selected)",secondary,frozen thr for P>=0.4 (from Sep-Oct),0.0619177270285788,0.5213879748728687,0.1249820737128925,2.018518439076513,0.4461053609848022
