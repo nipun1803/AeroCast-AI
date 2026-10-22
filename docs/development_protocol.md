@@ -1,6 +1,6 @@
 # Development protocol (disclosure)
 
-> Mirrors [notebook 04 §0](../notebooks/04_evaluation.ipynb). The test window (Nov–Dec) was meant to be touched once; here is what was seen and what each decision rests on.
+> Mirrors [notebook 04 §0](../notebooks/04_evaluation.ipynb). The Nov–Dec window was reserved for final evaluation but was inspected repeatedly during development. This disclosure records that exposure and the current selection evidence; it does not restore an untouched test set.
 
 ## Diagnostics that printed test metrics before the design was frozen
 
@@ -13,19 +13,36 @@
 7. **Baselines in the policy table:** a constant score showed an apparent lift (Sep–Oct and test). Cause: order-based tie-breaking in the daily policy (rows are in departure order). Now a seeded random tie-break; model scores, policy definition and the 10% share unchanged.
 8. **Second review round (items 1–11):** labels, baselines, assertions, documentation. No modelling decision changed; joint re-tuning of (m, window, C) re-selected the same values.
 
-## Decided without test evidence
+## Current selection evidence (retain the exposure disclosure above)
 
 | Decision | Evidence |
 |---|---|
-| Decision clock 20:00 (vs 2-day lag) | rolling CV: 0.4705 vs 0.4587 |
+| Decision clock 20:00 (vs 2-day lag) | rolling CV: 0.4715 vs 0.4589; fitting and history clocks both move |
 | m = 5, window = 14 days, C = 0.1 | rolling CV, tuned jointly |
-| No month feature | rolling CV: LogReg 0.4705 vs 0.4686 |
-| Day-level history group kept (LogReg) | CV ablation: +0.011, 3/4 folds |
+| No month feature | rolling CV: LogReg 0.4715 vs 0.4691; XGBoost 0.4474 vs 0.4405 |
+| Day-level history group kept (LogReg) | CV ablation: +0.0114, 3/4 folds |
 | XGBoost configuration | rolling CV |
-| Final model = LogReg | CV as deployed 0.4705 vs 0.4450 (rule declared before test) |
+| Final model = LogReg | fixed-tree development CV: 0.4715 vs 0.4474 |
 | Calibration rule outcome (Platt for LogReg, raw for XGBoost) | Sep → Oct |
-| Rolling-Platt window N = 28 | a priori (= entity-history window scale); 14/56 sensitivity only |
+| Rolling-Platt window N = 28 | pre-specified 28-day adaptation window; 14/56 sensitivity only; selected long history window is 14 days |
 | Daily top-10% policy | a-priori capacity assumption |
 | Precision target 0.40 | Sep–Oct reachability |
 
-**Implication:** test numbers are not perfectly clean confirmations; read small test differences with caution.
+**Implication:** test numbers are exploratory because of the exposure above. Selecting configurations on the same development folds also makes their reported CV scores selection scores rather than independent nested-CV estimates.
+
+## Fitting-time cutoff correction
+
+The D-1 20:00 clock applies to fitting and selection as well as historical
+features. Each CV fold fits only labels available before its first validation
+prediction; CV scoring excludes labels unavailable when the selected model
+must be ready for September 1. Final classifiers, the prior and diagnostic
+refits use only training labels known by August 31 at 20:00. September
+calibrator candidates use labels known before October 1 predictions; candidate
+selection, the static refit and the frozen threshold use only calibration
+labels known by October 31 at 20:00. Unknown availability is excluded.
+
+This removes 167 labels from final model fitting and 251 labels from static
+calibration/threshold selection, while retaining their flights for subsequent
+offline scoring. `results/summary.json` records the fitting counts. Tests in
+`tests/test_fitting_clock.py` check clock equality, late/unknown outcomes and
+invariance to changing labels that were unavailable at a fitting deadline.
