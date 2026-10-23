@@ -19,6 +19,10 @@
 \newcommand{\tabsize}{\footnotesize}
 \newcolumntype{P}[1]{>{\raggedright\arraybackslash}p{#1}}
 \emergencystretch=2em
+% Reserve enough width for the IEEE Roman table numbers in the list of tables.
+\makeatletter
+\renewcommand{\l@table}{\@dottedtocline{1}{1.5em}{3.5em}}
+\makeatother
 
 \begin{document}
 
@@ -31,7 +35,7 @@ Leakage-Aware Features, Logistic Regression versus Gradient Boosting, and Calibr
 \maketitle
 
 \begin{abstract}
-We rank flights leaving New York (EWR, JFK, LGA; 2013) by the risk of arriving at least 15 minutes late, using \textbf{only information known at 20:00 on the evening before departure}. Two models (regularised logistic regression and XGBoost) are compared with two references (base-rate prior, route history). On the held-out Nov--Dec window the final model reaches \textbf{PR-AUC 0.394} against 0.353 for route history and 0.258 for the prior. Flagging the riskiest 10\% of each day gives \textbf{precision 0.444 and lift 1.72}. The two learned models are \textbf{not statistically distinguished}. A calibration rule fixed in advance \textbf{fails in December} (ECE 0.142), whereas a causal rolling recalibration tracks the seasonal shift. We separate selection evidence from exploratory test findings and state what a daily review-desk analysis does and does not show.
+This Phase~1 study ranks flights leaving New York (EWR, JFK, LGA; 2013) by the risk of arriving at least 15 minutes late, using \textbf{only predictors available at 20:00 on the evening before departure}. Outcome-availability cutoffs also govern fitting, cross-validation, calibration and threshold selection. Regularised logistic regression and XGBoost are compared with a base-rate prior and route-history reference. On the chronologically reserved Nov--Dec window, the CV-selected logistic model reaches \textbf{PR-AUC 0.394}, against 0.404 for XGBoost, 0.353 for route history and 0.258 for the prior. Flagging the riskiest 10\% each day gives \textbf{precision 0.445 and lift 1.72}. The test bootstrap does not establish a difference between the learned models. Static calibration \textbf{fails in December} (ECE 0.143); causal rolling recalibration improves probability quality in this run. Test exposure during development is disclosed. The offline analysis measures review-candidate ranking; schedule changes and delay savings are not simulated. Deep learning is reserved for a later phase.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -40,10 +44,10 @@ flight delay prediction, data leakage, gradient boosting, probability calibratio
 
 \section*{Key Findings}
 \begin{enumerate}
-\item \textbf{Leakage is measurable.} 31.1\% of the previous day's arrivals are unknown at 20:00; letting them in inflates CV PR-AUC by $\approx$0.011.
-\item \textbf{Both models beat both references.} Test PR-AUC: LogReg 0.394, XGBoost 0.407, route history 0.353, prior 0.258.
-\item \textbf{LogReg $\approx$ XGBoost.} CV 0.4705 vs 0.4450; test-difference CI $[-0.010,+0.041]$ includes zero. The final model is chosen by a rule declared before test.
-\item \textbf{Static calibration breaks under season shift.} Test ECE 0.082 (static Platt) vs 0.027 (rolling Platt); December ECE 0.142.
+\item \textbf{Leakage is measurable.} 31.1\% of the previous day's arrivals are unknown at 20:00; moving the cutoff to midnight inflates CV PR-AUC by $\approx$0.010. Fitting cutoffs exclude 167 training and 251 calibration outcomes unavailable at the respective deployment boundaries.
+\item \textbf{Both models beat both references in observed AP.} Test PR-AUC: LogReg 0.394, XGBoost 0.404, route history 0.353, prior 0.258.
+\item \textbf{Model differences remain uncertain.} CV 0.4715 vs 0.4474; test-difference CI $[-0.013,+0.037]$ includes zero. Logistic regression is selected by the declared CV rule; this is not a demonstration of equivalence.
+\item \textbf{Static calibration breaks under season shift.} Test ECE 0.082 (static Platt) vs 0.027 (rolling Platt); December ECE 0.143.
 \item \textbf{A capacity-limited desk gains from ranking.} The top 10\% per day is 1.72$\times$ more precise than random (Sec.~\ref{sec:resched}); this is ranking quality, not realised savings.
 \end{enumerate}
 
@@ -66,7 +70,7 @@ Flight delays cascade: a late inbound aircraft, a congested departure bank or an
 
 \subsection{Contributions}
 \begin{itemize}
-\item A \textbf{decision clock}: an outcome enters a feature only once it is known; the resulting leak is quantified and unit-tested (Sec.~\ref{sec:clock}).
+\item A \textbf{decision clock}: an outcome enters a feature or a fitting/selection stage only once it is available at that stage's cutoff; leakage is quantified and unit-tested (Sec.~\ref{sec:clock}).
 \item A \textbf{controlled model comparison} of logistic regression and XGBoost \cite{chen2016xgboost} against two references, with the final model fixed by a rule declared before test.
 \item A study of \textbf{calibration under seasonal shift} \cite{guo2017calibration,ovadia2019shift}: a pre-declared static rule and a causal rolling alternative.
 \item A \textbf{policy-level decision-support analysis} for a capacity-limited review desk (Sec.~\ref{sec:resched}).
@@ -74,9 +78,11 @@ Flight delays cascade: a late inbound aircraft, a congested departure bank or an
 \end{itemize}
 
 \subsection{Scope}
+This is the machine-learning evaluation phase of Project~21, \emph{Flight Delay Prediction and Rescheduling}, whose full brief is titled \emph{Flight Delay Prediction via Gradient Boosting and Temporal Deep Learning}. Phase~1 covers literature review, data quality and EDA, feature engineering, theoretical justification, model application, reproducible code and an IEEE report supporting presentation and viva.
 \begin{itemize}
-\item \textbf{In scope:} machine learning only; timetable features and outcomes already known at the decision time.
-\item \textbf{Out of scope:} weather, deep temporal models, and any cost or schedule-change model (Sec.~\ref{sec:limits}). Weather is excluded \emph{by design}: observed weather for $D$ is not known at 20:00 on $D-1$.
+\item \textbf{Implemented:} logistic regression and XGBoost on schedule, carrier, route, airport congestion, calendar and past-delay features; temporal evaluation, calibration and offline review-candidate ranking.
+\item \textbf{Later-phase DL:} a compact MLP with learned airline, origin and destination embeddings. A temporal model is optional and requires correctly ordered histories; both must use the same clock and date splits as the ML models.
+\item \textbf{Current limits:} no archived weather forecasts, cost model or simulated schedule changes (Sec.~\ref{sec:limits}). Observed weather for $D$ is unavailable at 20:00 on $D-1$. The full brief's what-if rescheduling deliverable remains incomplete beyond candidate ranking.
 \end{itemize}
 
 \subsection{Organisation}
@@ -107,13 +113,13 @@ $k\%$ & daily review capacity (share of flights flagged)\\
 
 %====================================================================
 \section{Related Work}\label{sec:related}
-This section places the work in six strands and ends with the research gap. Each paper cited here was confirmed to exist by a bibliographic search; items we could not fully confirm are marked VERIFY in the matrix and in \texttt{references.bib}.
+This section places the work in six strands and ends with the questions motivating the implementation. Bibliographic records identify the cited works; the comparison matrix marks details not assessed in the available sources rather than inventing feature sets or performance claims.
 
 \subsection{Flight-delay prediction}
 \begin{itemize}
 \item \textbf{Surveys.} Sternberg et al.\ \cite{sternberg2017review} organise the literature by scope, data and computational method, and highlight the growing use of machine learning. This is the map against which our design (single airport group, one year, tabular model) can be placed.
-\item \textbf{Classical machine learning with explicit horizons.} Rebollo and Balakrishnan \cite{rebollo2014} forecast departure delays 2--24 hours ahead with random forests, combining \emph{local} delay states with \emph{network} delay variables describing the whole airspace. Two ideas carry over directly to our work: (i) the horizon is part of the problem definition, and (ii) recent network-wide state is a strong predictor, which motivates our day-level history group. Their target is delay minutes (regression) and the model reports median error; we instead rank flights and study calibration.
-\item \textbf{Scalable data mining and deep learning.} Belcastro et al.\ \cite{belcastro2016} apply scalable data-mining pipelines to flight delays, and Yu et al.\ \cite{yu2019} apply deep models to commercial-flight delays. We did not read the full texts of these two works, so we do not characterise their features or metrics in the matrix (marked VERIFY).
+\item \textbf{Classical machine learning with explicit horizons.} Rebollo and Balakrishnan \cite{rebollo2014} study random-forest departure-delay forecasting with explicit horizons and local/network delay information. The horizon is part of the task definition, and recent network state motivates our day-level history group. We do not transfer their task-specific errors or claim directly comparable performance for our arrival-delay classifier.
+\item \textbf{Scalable data mining and deep learning.} Belcastro et al.\ \cite{belcastro2016} study scalable data mining for flight delays, and Yu et al.\ \cite{yu2019} study a deep-learning approach to commercial-flight delays. Their full feature sets, calibration and validation protocols were not assessed here; the matrix states this explicitly. The Yu et al.\ bibliographic record was verified against Crossref during this revision.
 \end{itemize}
 
 \subsection{Gradient boosting and tabular data}
@@ -130,7 +136,7 @@ This section places the work in six strands and ends with the research gap. Each
 \subsection{Probability calibration and shift}
 \begin{itemize}
 \item \textbf{Post-hoc calibrators.} Platt scaling \cite{platt1999} fits a sigmoid to classifier scores; isotonic-regression-based calibration \cite{zadrozny2002,niculescu2005} fits a monotone step function and is more flexible but more data-hungry; beta calibration \cite{kull2017beta} generalises the sigmoid with a richer map family. Guo et al.\ \cite{guo2017calibration} popularise ECE and temperature scaling for neural networks.
-\item \textbf{Calibration under shift.} Ovadia et al.\ \cite{ovadia2019shift} show that uncertainty and calibration degrade under dataset shift; Rabanser et al.\ \cite{rabanser2019failing} study detecting shift (including domain classifiers, which is the idea behind our adversarial validation); Gama et al.\ \cite{gama2014drift} survey adapting to concept drift. These studies mostly use image or text benchmarks, not event probabilities with a seasonal base-rate change.
+\item \textbf{Calibration under shift.} Ovadia et al.\ \cite{ovadia2019shift} evaluate uncertainty under benchmark shifts; Rabanser et al.\ \cite{rabanser2019failing} study shift detection, including domain classifiers; Gama et al.\ \cite{gama2014drift} survey concept-drift adaptation. These motivate checking deployment probability quality and distribution change, but they do not establish how a calibrator will perform on this flight dataset.
 \item \textbf{Scoring rules.} The Brier score \cite{brier1950} and log-loss are strictly proper scoring rules \cite{gneiting2007scoring}: they are optimised only by the true probability, which is why we optimise log-loss and report Brier.
 \end{itemize}
 
@@ -141,24 +147,24 @@ This section places the work in six strands and ends with the research gap. Each
 
 \subsection{Temporal validation and uncertainty}
 \begin{itemize}
-\item \textbf{Rolling origin.} Tashman \cite{tashman2000} reviews out-of-sample tests and the advantage of rolling-origin evaluation over a single origin; Bergmeir and Ben\'itez \cite{bergmeir2012cv} discuss cross-validation for time series and suggest blocked forms. We use rolling-origin CV inside the training window.
+\item \textbf{Rolling origin.} Tashman \cite{tashman2000} reviews out-of-sample forecasting tests; Bergmeir and Ben\'itez \cite{bergmeir2012cv} discuss how temporal dependence affects cross-validation. We use forward rolling-origin CV inside the training window so that each validation period follows its fitting data.
 \item \textbf{Block bootstrap.} K\"unsch \cite{kunsch1989} introduces resampling \emph{blocks} for dependent observations. Flights on one day are correlated, so we resample whole days (a block of one day).
 \end{itemize}
 
 \subsection{Comparison matrix}
-Tables~\ref{tab:rw1a}, \ref{tab:rw1b}, \ref{tab:rw2a} and~\ref{tab:rw2b} compare the works above in four tables (two column groups for each of two paper groups). ``--'' means not applicable; ``not assessed'' means the item was not read in the source, and VERIFY marks entries awaiting confirmation. The matrix records only what we could confirm.
+Tables~\ref{tab:rw1a}, \ref{tab:rw1b}, \ref{tab:rw2a} and~\ref{tab:rw2b} group the cited work by task and method. ``--'' means not applicable; ``not assessed'' identifies details not established in this review. The tables provide design context, not a leaderboard of comparable flight-delay scores.
 
 \begin{table*}[!t]
-\caption{Related work, flight-delay and boosting papers (1/2): data, horizon, features and model.}
+\caption[Related work: flight-delay and boosting methods.]{Related work, flight-delay and boosting papers (1/2): data, horizon, features and model.}
 \label{tab:rw1a}
 \centering\tabsize
 \begin{tabular}{@{}P{2.6cm}rP{3.1cm}P{2.7cm}P{2.0cm}P{3.0cm}@{}}
 \toprule
 Paper & Year & Dataset & Horizon / decision time & Weather features & Model\\
 \midrule
-Rebollo \& Balakrishnan \cite{rebollo2014} & 2014 & US air-traffic delay data & 2--24 h ahead & not assessed & Random forest (regression)\\
-Belcastro et al.\ \cite{belcastro2016} & 2016 & Flight records & not assessed & VERIFY & Scalable data-mining classifiers\\
-Yu et al.\ \cite{yu2019} & 2019 & Commercial flights & not assessed & VERIFY & Deep learning\\
+Rebollo \& Balakrishnan \cite{rebollo2014} & 2014 & US air-traffic delay data & Explicit forecast horizons & not assessed & Random forests\\
+Belcastro et al.\ \cite{belcastro2016} & 2016 & Flight records & not assessed & not assessed & Scalable data mining\\
+Yu et al.\ \cite{yu2019} & 2019 & Commercial flights & not assessed & not assessed & Deep learning\\
 Sternberg et al.\ \cite{sternberg2017review} & 2017 & -- (review) & -- & -- & Taxonomy of methods\\
 Friedman \cite{friedman2001gbm} & 2001 & -- (method) & -- & -- & Gradient boosting machine\\
 Chen \& Guestrin \cite{chen2016xgboost} & 2016 & Several benchmarks & -- & -- & Gradient-boosted trees (XGBoost)\\
@@ -169,16 +175,16 @@ Grinsztajn et al.\ \cite{grinsztajn2022} & 2022 & Tabular benchmark ($\sim$45 se
 \end{table*}
 
 \begin{table*}[!t]
-\caption{Related work, flight-delay and boosting papers (2/2): metrics, calibration, temporal handling and limitation.}
+\caption[Related work: flight-delay and boosting evaluation.]{Related work, flight-delay and boosting papers (2/2): metrics, calibration, temporal handling and limitation.}
 \label{tab:rw1b}
 \centering\tabsize
 \begin{tabular}{@{}P{2.6cm}P{2.9cm}P{1.9cm}P{3.1cm}P{4.0cm}@{}}
 \toprule
 Paper & Metrics & Calibration reported & Leakage / temporal handling & Limitation (for our purpose)\\
 \midrule
-Rebollo \& Balakrishnan & Median test error 21 min at 2 h horizon & -- (regression) & Forecast horizon explicit & Minutes, not a ranked decision; no calibration\\
-Belcastro et al. & not assessed & not assessed & not assessed & VERIFY\\
-Yu et al. & not assessed & not assessed & not assessed & VERIFY (deep model, out of our scope)\\
+Rebollo \& Balakrishnan & Task-specific; not compared here & not assessed & Forecast horizon explicit & Departure-delay task differs from ours\\
+Belcastro et al. & not assessed & not assessed & not assessed & Full protocol not assessed\\
+Yu et al. & not assessed & not assessed & not assessed & Full protocol not assessed; DL is later-phase\\
 Sternberg et al. & -- & -- & -- & Survey; no new model\\
 Friedman & Loss-specific fit & No & -- & Not calibrated by design\\
 Chen \& Guestrin & Benchmark scores & No & -- & Probabilities not guaranteed calibrated\\
@@ -189,7 +195,7 @@ Grinsztajn et al. & Benchmark accuracy & No & -- & Not flight data\\
 \end{table*}
 
 \begin{table*}[!t]
-\caption{Related work, calibration, shift, evaluation and leakage papers (1/2): data, horizon and method.}
+\caption[Related work: calibration, shift and leakage methods.]{Related work, calibration, shift, evaluation and leakage papers (1/2): data, horizon and method.}
 \label{tab:rw2a}
 \centering\tabsize
 \begin{tabular}{@{}P{3.0cm}rP{3.3cm}P{3.3cm}P{3.9cm}@{}}
@@ -212,13 +218,13 @@ Tashman \cite{tashman2000} & 2000 & -- (review) & -- & Out-of-sample tests\\
 Bergmeir \& Ben\'itez \cite{bergmeir2012cv} & 2012 & Time series & -- & Blocked cross-validation\\
 K\"unsch \cite{kunsch1989} & 1989 & Stationary series & -- & Block bootstrap\\
 Kaufman et al.\ \cite{kaufman2012leakage} & 2012 & -- (framework) & -- & Leakage formulation and detection\\
-\textbf{This work} & 2026 & nycflights13 (2013) & 20:00 on $D-1$ & All of the above, applied to delays\\
+\textbf{This work} & 2026 & nycflights13 (2013) & 20:00 on $D-1$ & LogReg/XGBoost, Platt/isotonic, temporal evaluation\\
 \bottomrule
 \end{tabular}
 \end{table*}
 
 \begin{table*}[!t]
-\caption{Related work, calibration, shift, evaluation and leakage papers (2/2): metrics, calibration, temporal handling and limitation.}
+\caption[Related work: calibration, shift and leakage evaluation.]{Related work, calibration, shift, evaluation and leakage papers (2/2): metrics, calibration, temporal handling and limitation.}
 \label{tab:rw2b}
 \centering\tabsize
 \begin{tabular}{@{}P{3.0cm}P{2.6cm}P{1.9cm}P{3.0cm}P{4.3cm}@{}}
@@ -248,9 +254,10 @@ Kaufman et al. & -- & -- & Leakage theory & General; not flight-specific\\
 
 \subsection{Research gap}
 \begin{itemize}
-\item \textbf{Gap~1 --- an explicit decision clock.} Among the works above, none pairs a day-ahead decision time with an audit of which outcomes are known at that time; leakage is treated in general terms \cite{kaufman2012leakage}. We make the clock explicit, quantify the leak and test for it.
-\item \textbf{Gap~2 --- calibration under a seasonal base-rate change.} Calibration under shift is studied for deep networks on benchmark shifts \cite{ovadia2019shift}; we study delay probabilities across a real seasonal change and compare a pre-declared static calibrator with a causal rolling one.
-\item \textbf{Gap~3 --- policy-level evaluation.} Delay studies mostly report aggregate scores; we evaluate a capacity-limited daily top-$k\%$ policy and say what it does not show.
+\item \textbf{Operational availability.} This implementation must audit which predictors and fitting labels are known at the chosen day-ahead cutoff, applying learn--predict separation \cite{kaufman2012leakage} to the complete pipeline.
+\item \textbf{Probability quality under seasonal change.} We compare a static calibrator and a causal rolling alternative across the observed seasonal change, motivated by calibration-under-shift studies \cite{ovadia2019shift}.
+\item \textbf{Unresolved representation gap.} Manual route, airport and congestion summaries may miss interactions between time, carrier, airport and recent delay dynamics. Later embedding-based MLP experiments will test this hypothesis; the present model comparison does not prove that a DL model will improve performance.
+\item \textbf{Operational interpretation.} Daily top-$k\%$ ranking evaluates a review-capacity assumption. Intervention feasibility and simulated delay reductions require a separate what-if analysis.
 \end{itemize}
 These statements are limited to the papers we could confirm; we make no claim about the literature as a whole.
 
@@ -260,15 +267,15 @@ We first audit the data, fix the target, and then read the exploratory patterns 
 
 \subsection{Data quality}
 \begin{itemize}
-\item \textbf{Source.} \texttt{nycflights13} \cite{wickham2021nycflights13}: 336{,}776 departures from EWR, JFK and LGA in 2013, with carrier, flight number, tail number, origin, destination, distance, scheduled and actual times and delays.
+\item \textbf{Source.} The project uses the recommended Kaggle Flights CSV \cite{kaggleflights}, derived from \texttt{nycflights13} \cite{wickham2021nycflights13}: 336{,}776 departures from EWR, JFK and LGA in 2013, with identifiers, carrier, route, distance, schedule and recorded outcomes. The raw input is stored locally as \texttt{data/raw/flights.csv}.
 \item \textbf{Integrity checks (all passed).} No duplicate flights by identifier or by (date, carrier, flight, origin, scheduled time); the departure delay equals the clock-time difference modulo 24 h for every flight; hour and minute match the scheduled departure for every flight; no non-positive air time.
 \item \textbf{One anomaly.} EWR--EGE and JFK--EGE each have two distances (1726/1725 and 1747/1746) that change by exactly one mile on 1~March 2013: a dated reference-data update with no practical effect, so we keep the values.
-\item \textbf{Missing values are structural.} 8{,}255 flights were cancelled (no departure time), 1{,}175 diverted (departed, no arrival delay), and all 2{,}512 missing tail numbers belong to cancelled flights. These columns encode the outcomes we predict, so imputing them would be wrong and we \textbf{do not impute}.
+\item \textbf{Outcome missingness is structural.} The code identifies 8{,}255 cancellations from missing departure time and uses departed flights with missing arrival delay (1{,}175) as a diversion proxy. These are dataset-derived definitions, not independently verified operational flags. All 2{,}512 missing tail numbers belong to cancelled flights. Missing arrival-delay labels are excluded from the main task rather than imputed. Separately, the logistic preprocessing pipeline median-imputes missing numeric predictors and adds missingness indicators, fitting these transformations only on eligible training rows.
 \end{itemize}
 
 \subsection{Target}
 \begin{itemize}
-\item \textbf{Label.} $y=\mathbb{1}[\text{arr\_delay}\ge15]$, the BTS definition of a late arrival. The positive rate is 24.5\% of completed flights (16.1\% at 30 min, 8.7\% at 60 min).
+\item \textbf{Label.} $y=\mathbb{1}[\text{arr\_delay}\ge15]$, using the BTS 15-minute late-arrival convention \cite{btsdelaydefinitions}. The positive rate is 24.5\% of completed flights (16.1\% at 30 min, 8.7\% at 60 min).
 \item \textbf{Why arrival, not departure delay.} The arrival delay is what passengers and downstream connections experience; a flight that leaves late but makes up time is not a late arrival.
 \item \textbf{Cancelled and diverted flights.} They have no arrival delay, so they are dropped from the target; but they stay in the \emph{schedule} counts, because a cancellation is not known the evening before. A sensitivity analysis counts them as delayed instead (Sec.~\ref{sec:exploratory}).
 \item \textbf{Consequence for modelling.} A moderate imbalance ($\sim$1 in 4): PR-AUC is the main ranking metric, and class weights are not used so that predicted probabilities stay interpretable.
@@ -301,7 +308,7 @@ We first audit the data, fix the target, and then read the exploratory patterns 
 \begin{figure}[t]
 \centering
 \includegraphics[width=\columnwidth]{eda_history_corr_heatmap.png}
-\caption{Correlation of the history features (training window only).}
+\caption[History-feature correlations.]{Correlation of the history features (training window only).}
 \label{fig:corr}
 \end{figure}
 
@@ -313,13 +320,13 @@ We first audit the data, fix the target, and then read the exploratory patterns 
 \toprule
 Observation & Design decision\\
 \midrule
-Missingness equals cancellations and diversions & Drop from the target, keep in schedule (congestion) counts, no imputation\\
+Structural outcome missingness; cancellation/diversion proxies & Drop missing labels, keep schedule counts; impute missing numeric predictors within fitting folds\\
 Strong time-of-day gradient (10\% to 37\%) & Cyclic departure and arrival time plus the raw hour\\
 One year; seasonal months; calm Sep--Oct, extreme December & No month feature; chronological split; calibration studied under shift\\
 Short-memory daily shocks (lag-1 autocorrelation $\approx$0.4) & One-day and seven-day lagged rates (day-level history group)\\
 Stable carrier, route and aircraft propensities; some tiny groups & 7- and 14-day entity rates with Bayesian shrinkage (CV-tuned $m$, window); one-hot with minimum frequency 50\\
 Congestion correlates with delay but is confounded with the hour & Scheduled-bank counts, kept and tested by ablation\\
-Leakage risk from post-departure columns; 31\% of $D-1$ arrivals land after 20:00 & Decision clock at 20:00 on $D-1$; outcomes enter history only once known; two leakage tests\\
+Leakage risk from post-departure columns and unavailable labels & Apply the 20:00 clock to features, model fitting, CV, calibration and thresholds; regression tests cover each boundary\\
 History rates strongly inter-correlated & L2-regularised logistic regression; grouped, not per-feature, permutation importance\\
 \bottomrule
 \end{tabular}
@@ -327,12 +334,12 @@ History rates strongly inter-correlated & L2-regularised logistic regression; gr
 
 %====================================================================
 \section{Decision Clock and Leakage}\label{sec:clock}
-Leakage is information about the target that should not be available when the prediction is made \cite{kaufman2012leakage}. In delay data there are two kinds: \emph{column} leakage (post-departure columns such as the actual departure delay) and \emph{temporal} leakage (past outcomes used before they were known). The first is removed by construction; the second needs an explicit clock.
+Leakage is information about the target that should not be available when the prediction is made \cite{kaufman2012leakage}. Here it can arise through post-departure predictor columns, historical aggregates using outcomes before they are known, or fitting and selecting a model with labels unavailable when that model is needed. The clock must govern all three paths.
 
 \subsection{Definition}
 \begin{itemize}
 \item \textbf{Decision time.} 20:00 NYC on $D-1$ for every flight of day $D$.
-\item \textbf{Known when.} An arrival delay is known at the \emph{actual gate arrival}, converted to the NYC clock; a cancellation is known at the scheduled departure (or the actual departure for flights that left).
+\item \textbf{Known when.} An arrival delay is known at the \emph{actual gate arrival}, converted to the NYC clock. Cancellation status is assumed known at scheduled departure for cancelled flights, or actual departure for flights that leave; the dataset has no cancellation-notification timestamp.
 \item \textbf{Availability date.} The first target day whose decision time is at or after the known-time $t$:
 \end{itemize}
 \[
@@ -340,6 +347,15 @@ a(t)=\lceil t-20\,\text{h}\rceil_{\text{day}}+1\text{ day}.
 \]
 \begin{itemize}
 \item \textbf{Windows roll over availability dates, not flight dates.} A flight dated $D-1$ that lands at 22:30 has $a(t)=D+1$ and cannot help predict $D$. The timetable of day $D$ (including flights that will be cancelled) is allowed; anything that happens on $D$ is not.
+\end{itemize}
+
+\subsection{Fitting and selection cutoffs}
+For a stage needed on target date $D_0$, a label is eligible only if $a(t)\le D_0$; unknown availability times are excluded. This is distinct from assigning the flight itself to a chronological split.
+\begin{itemize}
+\item \textbf{CV fitting.} Each fold uses earlier flight dates and only labels available at the first validation day's $D-1$ clock. The May, June, July and August fitting sets contain 99{,}160, 127{,}268, 154{,}318 and 182{,}626 rows; respectively 272, 292, 317 and 302 otherwise chronological training labels are excluded.
+\item \textbf{CV selection.} Validation labels used to select the model must be available before its first calibration prediction on 1~September. This also excludes 167 late-August validation outcomes.
+\item \textbf{Final fitting.} Of 211{,}684 training scoring rows, 211{,}517 labels are available by 20:00 on 31~August; 167 are excluded from the final models and fitted prior.
+\item \textbf{Static calibration and thresholds.} September candidate fits exclude outcomes unavailable before 1~October. October checks, the final Sep--Oct refit and frozen threshold use outcomes available before 1~November: 55{,}377 labels, excluding 251. Later labels may still be scored retrospectively, but cannot determine these earlier fits.
 \end{itemize}
 
 \subsection{Time zones and daylight saving}
@@ -370,8 +386,8 @@ $-360$ (HNL) & 1\\
 \subsection{Size of the leak}
 \begin{itemize}
 \item \textbf{Which outcomes are late.} 31.1\% of $D-1$ arrivals land after 20:00 (usable only from $D+1$) and are delayed 38.1\% of the time, against 18.3\% for arrivals known by 20:00. The unknown outcomes are the \emph{bad evening} the model should anticipate.
-\item \textbf{Measured, not argued.} An earlier version used all flights dated $D-1$ for day $D$. With the current code we move the clock (Table~\ref{tab:tuning}, last rows): a 24:00 clock (every $D-1$ arrival counts) gives rolling-CV PR-AUC \textbf{0.4812} for logistic regression against 0.4705 at 20:00, a leak worth about \textbf{0.011}.
-\item \textbf{Why not simply lag two days.} Discarding all of $D-1$ (a 00:00 clock) gives 0.4587, lower by 0.012 and in all four folds, and throws away the 69\% of $D-1$ outcomes that \emph{are} known by 20:00. The clock keeps the usable information and drops only the unusable.
+\item \textbf{Clock sensitivity.} Moving the cutoff from 20:00 to midnight on $D-1$ admits later information than the stated task allows (Table~\ref{tab:tuning}): CV PR-AUC rises from \textbf{0.4715} to \textbf{0.4814}, about \textbf{0.010}. These sensitivity runs apply the alternate clock to fitting as well as features; the difference is an empirical clock comparison, not a clean estimate of feature leakage alone.
+\item \textbf{Why not simply lag two days.} A 00:00 cutoff on $D-1$ gives 0.4589, lower by 0.013 on average and in all four folds, discarding the many $D-1$ outcomes already available by 20:00. The chosen clock retains usable recent information.
 \end{itemize}
 
 \subsection{Leakage tests}
@@ -379,6 +395,7 @@ $-360$ (HNL) & 1\\
 \item \textbf{(a) Future outcomes.} Overwrite every post-departure column from 15~June onward with random values and rebuild all features. Changed feature cells up to and including the cutoff: \textbf{0} (bit-for-bit identical); after the cutoff: 4{,}558{,}344, so the test is not vacuous.
 \item \textbf{(b) Decision clock.} For a target day $D$, randomise the arrival outcomes of $D-1$ flights that landed after 20:00. Changed cells on day $D$ for 14~Feb, 11~Jul and 20~Dec: \textbf{0}.
 \item \textbf{Positive control.} Randomising the $D-1$ flights that landed \emph{before} 20:00 changes 12{,}428, 13{,}078 and 12{,}740 cells; a test that cannot fail proves nothing, so this control confirms the check is sensitive.
+\item \textbf{(c) Fitting boundaries.} Regression tests change unavailable labels and verify invariant fitted LogReg/XGBoost predictions, prior, calibration choices and frozen thresholds. Additional tests cover equality at the cutoff, unknown times, CV eligibility and cancellation/diversion timing. The complete suite passes 36 tests.
 \end{itemize}
 
 %====================================================================
@@ -398,7 +415,7 @@ Identifiers & 3 & carrier, origin, destination\\
 Schedule & 10 & cyclic time-of-day and weekday, departure hour, weekend, days to holiday (cap 14), log distance\\
 Congestion & 7 & scheduled flights in the origin-hour, $\pm1$ h bank and day, destination and carrier volumes, leg index\\
 Entity history & 18 & smoothed delay rate and log-volume by route, carrier-route, carrier, destination, origin$\times$hour, flight number, tail number\\
-Day-level history & 7 & network and per-origin rate over the last known 24 h, 7-day network rate, cancellation rates, mean delay\\
+Day-level history & 7 & network and per-origin rates over 1/7 availability days, cancellation rates, clipped mean delay\\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -407,7 +424,7 @@ Day-level history & 7 & network and per-origin rate over the last known 24 h, 7-
 \item \textbf{Schedule.} Time of day and weekday are encoded as sine/cosine pairs so that 23:59 and 00:01 are neighbours; the raw hour is kept as well. Days to the nearest US federal holiday are capped at 14 days.
 \item \textbf{Congestion.} Counts of \emph{scheduled} flights in the same origin-hour and neighbouring banks; cancellations are not subtracted, because they are unknown the evening before. The leg index (the aircraft's $n$th departure of the day) is a partial proxy for rotation.
 \item \textbf{Entity history.} Smoothed late rates and log-volumes for entities that carry persistent delay propensity: routes, carriers, destinations, origin-hours, flight numbers and tail numbers.
-\item \textbf{Day-level history.} Network-wide and per-origin rates over the last \emph{known} 24 hours, plus a 7-day rate: the day's disruption state as far as the clock allows.
+\item \textbf{Day-level history.} Network-wide and per-origin rates over one- and seven-day windows of availability dates: the recent disruption state as far as the clock allows. A one-day availability window is not a literal interval of actual arrival times.
 \end{itemize}
 
 \subsection{Shrinkage of entity rates}
@@ -428,22 +445,22 @@ where the counts cover outcomes \emph{available} for $D$ within the window and $
 \begin{itemize}
 \item \textbf{Why joint.} Hand-picked values ($m=20$, 28 days) were replaced by a rolling-CV search. The best $C$ depends on how noisy the features are, so each $(m,w)$ pair is scored at its own best $C$ of the logistic grid; fixing $C$ could mislead the choice.
 \item \textbf{Search.} $m\in\{5,20,50\}$, window $w\in\{14,28,56\}$ days, nine pairs (Table~\ref{tab:tuning}).
-\item \textbf{Result.} Less shrinkage is better at every window, and the 14-day window is best at every $m$. The CV-best triple is $m=5$, $w=14$, $C=0.1$ (0.4705). An earlier search fixed $C=0.001$; re-tuning jointly selected the \emph{same} pair, so \textbf{no decision changed}.
-\item \textbf{How large is the gain.} Small relative to the fold spread (the old hand-picked values scored 0.4657); but the rule is ``CV-best'', and the pipeline aborts if the configuration disagrees with the table, so the choice is mechanical.
+\item \textbf{Result.} Less shrinkage is better at every window, and the 14-day window is best at every $m$. The CV-best triple is $m=5$, $w=14$, $C=0.1$ (0.4715). The fitting-cutoff correction retains this triple.
+\item \textbf{How large is the gain.} Small relative to the fold spread (the old hand-picked pair, $m=20$, $w=28$, now scores 0.4665 with its own best $C$). The pipeline checks that the configured pair agrees with the CV-best pair.
 \end{itemize}
 
 \subsection{Design choices}
 \begin{itemize}
-\item \textbf{No month features.} Training covers months 1--8, so months 9--12 would be an extrapolation, and each month is one realisation. CV agrees (Table~\ref{tab:month}): adding cyclic month features lowers logistic regression from 0.4705 to 0.4686 (worse in two of four folds) and is a wash for XGBoost (0.4450 to 0.4471). Seasonality reaches the model through the trailing history rates. An earlier test-based justification for this choice was withdrawn (Sec.~\ref{sec:protocol}).
+\item \textbf{No month features.} Training covers months 1--8 and each seasonal month is observed only once. Adding cyclic month features lowers logistic CV AP from 0.4715 to 0.4691 and fixed-tree XGBoost from 0.4474 to 0.4405 (worse in two of four folds for each; Table~\ref{tab:month}). Trailing histories retain recent seasonal information. An earlier test-based justification was withdrawn (Sec.~\ref{sec:protocol}); this check uses the selected model settings without separately retuning them for month features.
 \item \textbf{Day-level history is its own group.} \texttt{hist\_rate\_network\_1d} takes one value per day, shared by hundreds of flights, so its effective sample size is about the number of training days and a flexible model could use it as a date identifier. Keeping it separate lets the ablation test it in isolation.
-\item \textbf{Encoding.} One-hot identifiers with minimum category frequency 50; numeric features standardised (for logistic regression).
+\item \textbf{Encoding.} LogReg one-hot encodes identifiers with minimum frequency 50; numeric predictors use median imputation, missing indicators and standardisation within each fitting pipeline. XGBoost uses native categorical splits and native numeric missing-value handling; it does not use the LogReg preprocessing pipeline.
 \end{itemize}
 
 %====================================================================
 \section{Models and Training}\label{sec:models}
 \subsection{Logistic regression}
 \begin{itemize}
-\item \textbf{Model.} $P(y=1\mid x)=\sigma(w^\top x+b)$, trained by minimising the L2-regularised log-loss, a convex problem with a unique minimum:
+\item \textbf{Model.} $P(y=1\mid x)=\sigma(w^\top x+b)$, trained by minimising a convex L2-regularised log-loss (the intercept $b$ is unpenalised):
 \end{itemize}
 \[
 \mathcal{L}(w)=-\tfrac1n\textstyle\sum_i\big[y_i\log p_i+(1-y_i)\log(1-p_i)\big]+\tfrac{1}{2Cn}\lVert w\rVert^2 .
@@ -459,9 +476,9 @@ where the counts cover outcomes \emph{available} for $D$ within the window and $
 \item \textbf{Model.} An additive ensemble of trees $F_T(x)=\sum_t f_t(x)$ fitted stage-wise \cite{friedman2001gbm,chen2016xgboost}. At stage $t$ it minimises a second-order Taylor approximation of the loss plus a complexity penalty:
 \end{itemize}
 \[
-\tilde{\mathcal L}^{(t)}=\textstyle\sum_i\big[g_if_t(x_i)+\tfrac12h_if_t(x_i)^2\big]+\gamma T+\tfrac12\lambda\lVert w\rVert^2 ,
+\tilde{\mathcal L}^{(t)}=\textstyle\sum_i\big[g_if_t(x_i)+\tfrac12h_if_t(x_i)^2\big]+\gamma J_t+\tfrac12\lambda\lVert v_t\rVert^2 ,
 \]
-with $g_i=p_i-y_i$ and $h_i=p_i(1-p_i)$ for the log-loss.
+with $g_i=p_i-y_i$ and $h_i=p_i(1-p_i)$ for log-loss, $J_t$ the number of leaves in the new tree and $v_t$ its leaf-weight vector. The implementation searches $\lambda$ and leaves $\gamma$ at its default zero.
 \begin{itemize}
 \item \textbf{Leaf weights and split gain.} For a fixed tree structure the optimal leaf weight is $w_j^*=-G_j/(H_j+\lambda)$, where $G_j,H_j$ sum gradients and Hessians in the leaf. A split is accepted when
 \end{itemize}
@@ -471,20 +488,20 @@ with $g_i=p_i-y_i$ and $h_i=p_i(1-p_i)$ for the log-loss.
 \begin{itemize}
 \item \textbf{Role of the knobs.} \emph{Depth} caps interaction order (depth 2 means pairwise interactions at most). \emph{Minimum child weight} is a minimum Hessian mass per leaf, which guards against fitting tiny groups on a weak, noisy signal. \emph{Column subsampling} and $\lambda$ regularise; \emph{learning rate} trades the number of trees against smoothness.
 \item \textbf{Search.} 48 combinations of depth $\{2,3,5\}$, minimum child weight $\{20,100\}$, column subsample $\{0.5,0.8\}$, $\lambda\in\{1,10\}$ and learning rate $\{0.03,0.1\}$ (row subsample fixed at 0.8); 16 sampled at random, each with up to 3{,}000 trees and early stopping (100 rounds) on each fold's validation month. The tree count of a configuration is the mean of its four best iterations.
-\item \textbf{Selected.} Depth 2, learning rate 0.1, minimum child weight 100, column subsample 0.8, $\lambda=10$, \textbf{143 trees}; in-fold CV $0.4754\pm0.0673$. The heavily constrained choice says the signal is weak and smooth, and the top configurations differ by less than one fold standard deviation.
+\item \textbf{Selected.} Depth 2, learning rate 0.1, minimum child weight 20, row subsample 0.8, column subsample 0.5, $\lambda=1$, \textbf{148 trees}; in-fold CV $0.4761\pm0.0703$. Its fixed-tree CV score is 0.4474. These settings come from the reproduced search; their selection does not by itself prove that the underlying signal is weak or smooth.
 \item \textbf{Why log-loss.} A strictly proper scoring rule \cite{gneiting2007scoring}: its expectation is minimised only by the true probability, so training pushes toward calibration on the training distribution. The Brier score \cite{brier1950} is also proper; accuracy and AUC are not.
 \end{itemize}
 
 \subsection{Reference models}
 \begin{itemize}
-\item \textbf{Prior.} The training base rate for every flight (PR-AUC equals the evaluated window's base rate; ROC-AUC is 0.5). It shows what a model with no information achieves, including on calibration metrics.
+\item \textbf{Prior.} The eligible fitting-label base rate for every flight (PR-AUC equals the evaluated window's base rate; ROC-AUC is 0.5). It provides a reference with no flight-specific information.
 \item \textbf{Route history.} The smoothed 14-day carrier-route delay rate alone, with no model. A learned model must beat this simple, transparent heuristic to justify itself.
-\item \textbf{Placement.} Both appear \textbf{beside every learned model} in every table and figure.
+\item \textbf{Placement.} Both appear in the principal model-comparison and operating-policy tables and relevant evaluation figures.
 \end{itemize}
 
 \subsection{Calibration methods}
 \begin{itemize}
-\item \textbf{Platt scaling} \cite{platt1999} fits $\sigma(a\,\mathrm{logit}\,p+b)$ on held-out scores: two parameters, smooth and monotone. \textbf{Temperature scaling} is its one-parameter special case \cite{guo2017calibration}.
+\item \textbf{Platt scaling} \cite{platt1999} fits $\sigma(a\,\mathrm{logit}\,p+b)$ on held-out scores. The positive fitted slope in this run preserves ranking. \textbf{Temperature scaling} \cite{guo2017calibration} restricts this mapping to $b=0$ and $a=1/T$, $T>0$; it is discussed but not implemented here.
 \item \textbf{Isotonic regression} \cite{zadrozny2002,niculescu2005} fits any monotone step function by pool-adjacent-violators: more flexible, but it needs more data and can overfit.
 \item \textbf{Beta calibration} \cite{kull2017beta} is a richer parametric family; we mention it as an alternative and do not use it.
 \item \textbf{Shared assumption.} All of them assume the calibration data resemble deployment data. Sec.~\ref{sec:exploratory} shows what happens when that fails.
@@ -495,7 +512,8 @@ with $g_i=p_i-y_i$ and $h_i=p_i(1-p_i)$ for the log-loss.
 \subsection{Split and cross-validation}
 \begin{itemize}
 \item \textbf{Chronological split} (Table~\ref{tab:split}): train Jan 8--Aug (211{,}684 rows), calibration Sep--Oct (55{,}628), test Nov--Dec (53{,}991). The first week is excluded as warm-up for the history windows.
-\item \textbf{Base rates differ by design.} 26.5\% in training, 15.7\% in calibration, 25.8\% in test (18.1\% in November, 33.5\% in December): the split is a deliberate stress test.
+\item \textbf{Scoring versus fitting.} These are chronological scoring-row counts, not the eligible fitting counts in Sec.~\ref{sec:clock}. Static train/calibration scores are retrospective diagnostics; they should not be presented as historical deployed predictions or independent estimates of generalisation.
+\item \textbf{Observed base-rate shift.} 26.5\% in training, 15.7\% in calibration, 25.8\% in test (18.1\% in November, 33.5\% in December). These differences are properties of the data in the chronological windows, not a manipulated class balance.
 \item \textbf{Rolling-origin CV} inside the training window \cite{tashman2000,bergmeir2012cv}: train Jan--Apr $\to$ validate May; Jan--May $\to$ Jun; Jan--Jun $\to$ Jul; Jan--Jul $\to$ Aug. Each fold validates on a month strictly after its training data.
 \item \textbf{Abandoned design.} A single validation month (September) was dropped: it is the calmest month and its best XGBoost tree count differed from October's on nearly flat curves (Fig.~\ref{fig:tree}).
 \end{itemize}
@@ -504,20 +522,20 @@ with $g_i=p_i-y_i$ and $h_i=p_i(1-p_i)$ for the log-loss.
 \begin{itemize}
 \item \textbf{PR-AUC} is average precision, $AP=\sum_k(R_k-R_{k-1})P_k$, a step-wise sum, not a trapezoidal area; the no-skill value is the base rate \cite{davis2006pr,saito2015pr}. \textbf{ROC-AUC} is reported alongside; it ignores the base rate.
 \item \textbf{Brier score} $=\frac1n\sum_i(p_i-y_i)^2$ \cite{brier1950}, a proper score combining calibration and sharpness.
-\item \textbf{ECE} \cite{guo2017calibration} is $\sum_b\frac{|B_b|}{n}\,\lvert\bar y_b-\bar p_b\rvert$ over probability bins. It is a biased estimator (sampling noise always adds, growing with the number of bins) and binning-dependent, so we report both equal-width (15 bins) and equal-mass versions. It is a \emph{marginal} check: it rewards a constant prediction when base rates happen to agree.
+\item \textbf{ECE} \cite{guo2017calibration} is $\sum_b\frac{|B_b|}{n}\,\lvert\bar y_b-\bar p_b\rvert$ over probability bins. It depends on binning and sample size and is a marginal calibration check, not a measure of discrimination. Equal-width ECE uses 15 bins. The current equal-mass implementation can divide tied scores by row order, making its value unstable for the constant prior; we retain it as a diagnostic with this limitation and use equal-width ECE and Brier for the main discussion.
 \item \textbf{Lift} $=$ policy precision / base rate.
 \item \textbf{Oracle recall@$p$.} The best recall at precision $\ge p$ with the threshold tuned \emph{on the evaluated labels}. It is a point on the PR curve for comparing models, never an operating result.
 \end{itemize}
 
 \subsection{Operating policies (fixed before test)}
 \begin{itemize}
-\item \textbf{Primary: daily top 10\%.} Flag the riskiest 10\% of each day's flights, as a desk with fixed review capacity would. It uses within-day ranks only, so it is immune to base-rate shift and to any monotone recalibration within a day. Exact ties are broken by a seeded random draw; an order-based tie-break would let a constant score pick the day's latest flights and appear skilful (a bug we found and fixed).
-\item \textbf{Secondary: frozen threshold.} A score threshold frozen on Sep--Oct to reach precision 0.40. A target of 0.50 was tried first and is unreachable there (the base rate is 15.7\%).
+\item \textbf{Primary: daily top 10\%.} Flag $\lceil0.10n_D\rceil$ of each day's flights. This fixes review capacity and preserves selections under a strictly increasing within-day recalibration; precision and recall can still change under distribution shift. Exact ties use a seeded random draw. An earlier order-based tie-break let a constant score select late-day flights and was corrected.
+\item \textbf{Secondary: frozen threshold.} Choose the lowest threshold achieving empirical precision at least 0.40 on eligible Sep--Oct labels and freeze it before November. The precision target is not guaranteed on future data. A target of 0.50 was tried first and was unreachable on the calibration window.
 \end{itemize}
 
 \subsection{Calibration rules}
 \begin{itemize}
-\item \textbf{Static rule (fixed before test).} Fit Platt and isotonic on September, check ECE on October, keep raw scores unless the best recalibrator lowers October ECE by more than 0.005, then refit on Sep--Oct.
+\item \textbf{Static rule (fixed before test).} Fit Platt and isotonic on September outcomes available before the first October prediction; compare eligible October labels available before November. Keep raw unless the best recalibrator lowers October ECE by more than 0.005, then refit using eligible Sep--Oct labels before November.
 \item \textbf{Rolling Platt (adaptive alternative).} For each day $D$, refit Platt on outcomes \emph{available} by $D$'s decision time over the trailing $N$ days and apply it to $D$'s flights. It uses the same availability dates as the features and is causal. $N=28$ was fixed a priori; $N=14$ and $N=56$ are sensitivity only.
 \end{itemize}
 
@@ -530,6 +548,7 @@ with $g_i=p_i-y_i$ and $h_i=p_i(1-p_i)$ for the log-loss.
 \subsection{Development protocol and disclosure}
 \begin{itemize}
 \item \textbf{The test window was not touched only once.} Test metrics were visible in: (1) the first single-September design; (2) a month-feature comparison, the original and now withdrawn justification for omitting month; (3) feature-subset diagnostics that shaped the day-level hypothesis; (4) lowering the precision target from 0.50 to 0.40, decided because 0.50 is unreachable on Sep--Oct, yet test recall was printed; (5) before any calibration rule existed; (6) one pipeline run where the final-model comparison still used XGBoost's optimistic in-fold score, corrected for a methodological reason found from CV alone; (7) when adding the prior to the policy table exposed the order-based tie-break.
+\item \textbf{Fitting-clock correction.} A later audit found that chronological membership alone admitted some labels unavailable at fitting and selection boundaries. The reproduced run applies availability masks throughout and re-executes the pipeline and notebooks. Its updated results were also observed; the correction is methodological and does not create a pristine test set retroactively.
 \item \textbf{Evidence is therefore separated.} Everything used to \emph{decide} (clock, $m$, window, $C$, XGBoost configuration, final model, calibration rule and its outcome, month removal, ablation claims) comes from \textbf{CV or Sep--Oct}. The rolling-calibration window ($N=28$), the 10\% share and the precision target were set a priori or on Sep--Oct. \textbf{Test results are exploratory} and small differences should be read with caution.
 \end{itemize}
 
@@ -537,14 +556,14 @@ with $g_i=p_i-y_i$ and $h_i=p_i(1-p_i)$ for the log-loss.
 \section{Evidence Used for Selection (CV and Sep--Oct)}\label{sec:selection}
 \subsection{Final-model choice}
 \begin{itemize}
-\item \textbf{Scored as deployed.} XGBoost's search score (0.4754) early-stops on the validation fold itself, which tunes the tree count on the scored data and makes the score optimistic. With its fixed, fold-averaged tree count it is \textbf{0.4450}. Logistic regression, with no in-fold tuning, is \textbf{0.4705}. References: route history 0.3476, prior 0.2775 (Table~\ref{tab:cv}).
-\item \textbf{Per-fold differences} (LogReg $-$ XGBoost): $+0.031,\,+0.075,\,-0.001,\,-0.003$; mean $+0.026$; fold sd about 0.07. LogReg leads in two of four folds.
-\item \textbf{Conclusion.} The two models are \textbf{not statistically distinguished}. LogReg is chosen by the rule declared before test (higher CV mean as deployed, recorded in the configuration; the pipeline aborts if CV ever disagrees), not by demonstrated superiority.
-\item \textbf{A disclosed reversal.} With the optimistic in-fold score the decision would have reversed (XGBoost 0.4754 against 0.4705); that is why the correction is disclosed.
+\item \textbf{Fixed-tree comparison.} XGBoost's search score (0.4761) early-stops on the scored validation folds and is optimistic. Its fixed, fold-averaged tree count scores \textbf{0.4474}; LogReg scores \textbf{0.4715}. Route history scores 0.3477 and the prior 0.2777 (Table~\ref{tab:cv}). Configurations and tree count still originate from the same CV folds: these are development scores, not independent nested-CV estimates.
+\item \textbf{Per-fold differences} (LogReg $-$ XGBoost): $+0.001,\,+0.086,\,+0.006,\,+0.003$; mean $+0.024$. LogReg leads in all four folds; the paired-difference sd is 0.041 and each family's fold sd is about 0.07. Four folds do not establish population-level superiority.
+\item \textbf{Conclusion.} LogReg is chosen by the declared higher-CV-mean rule. The test bootstrap CI includes zero; this fails to establish a test-performance difference and does not prove equivalence.
+\item \textbf{A disclosed reversal.} Choosing with the optimistic in-fold score would favour XGBoost (0.4761 against 0.4715), which is why that score is excluded from family selection.
 \end{itemize}
 
 \begin{table*}[!t]
-\caption{Rolling-CV PR-AUC (validation months May--Aug), models scored as deployed.}
+\caption[Rolling-CV model comparison.]{Rolling-CV PR-AUC (validation months May--Aug), models scored as deployed.}
 \label{tab:cv}
 \centering\tabsize
 \input{tables/cv_summary.tex}
@@ -552,13 +571,13 @@ with $g_i=p_i-y_i$ and $h_i=p_i(1-p_i)$ for the log-loss.
 
 \subsection{Calibration rule outcome}
 \begin{itemize}
-\item \textbf{LogReg $\to$ Platt.} October ECE improves by 0.026 (well above the 0.005 margin). Raw logistic regression over-predicts in October because it carries the 26.5\% training base rate into a calmer month.
-\item \textbf{XGBoost $\to$ raw.} The best recalibrator makes October ECE \emph{worse} ($-0.025$), so the rule keeps raw scores.
+\item \textbf{LogReg $\to$ Platt.} Eligible October ECE improves by 0.030, above the 0.005 margin. Raw LogReg over-predicts on this calmer calibration window.
+\item \textbf{XGBoost $\to$ raw.} The best recalibrator worsens eligible October ECE (gain $-0.022$), so the rule keeps raw scores.
 \item \textbf{Names.} ``LogReg (Platt, rule-selected)'' and ``XGBoost (raw, rule-selected)'' denote these variants throughout (Table~\ref{tab:calsel}). Sep--Oct is also where the secondary policy's threshold was frozen.
 \end{itemize}
 
 \begin{table*}[!t]
-\caption{Calibration rule: fit on September, evaluated on October.}
+\caption[Static calibrator selection.]{Calibration rule: fit on September, evaluated on October.}
 \label{tab:calsel}
 \centering\tabsize
 \input{tables/calibrator_selection.tex}
@@ -566,16 +585,16 @@ with $g_i=p_i-y_i$ and $h_i=p_i(1-p_i)$ for the log-loss.
 
 \subsection{Feature families}
 \begin{itemize}
-\item \textbf{LogReg gains in CV.} Congestion $+0.021$ (4/4 folds), entity history $+0.020$ (4/4), day-level history $+0.011$ (3/4) (Fig.~\ref{fig:abl}). This CV evidence, not a test difference, supports keeping every family and replaces the earlier test-based justification of the day-level group.
-\item \textbf{XGBoost.} Congestion $+0.012$ (3/4); entity history $-0.002$ (2/4); day-level $-0.004$ (3/4). No claim rests on its ablation.
-\item \textbf{Complementarity.} History alone (logistic regression, 25 features) reaches 0.4478, below schedule plus history: the families complement each other.
-\item \textbf{Grouped permutation importance} (Sep--Oct; Table~\ref{tab:perm}, Fig.~\ref{fig:perm}) shuffles a whole family with one permutation so correlated members cannot cover for each other. For the final model: congestion 0.046, schedule 0.042, identifiers 0.038, entity history 0.029, day-level history 0.026. For XGBoost, schedule dominates (0.054). Descriptive only; not a selection criterion.
+\item \textbf{LogReg gains in CV.} Congestion $+0.020$ (4/4 folds), entity history $+0.020$ (4/4), day-level history $+0.011$ (3/4) (Fig.~\ref{fig:abl}). These checks support retaining the families at the selected $C$; subsets are not separately retuned.
+\item \textbf{XGBoost.} Congestion gains 0.010 on average (3/4 folds); entity history and day-level history average slightly negative gains (respectively $-0.0004$ and $-0.0007$). The aggregate can be negative despite most fold gains being positive when a loss in one fold is larger. These subset checks keep the selected XGBoost configuration fixed.
+\item \textbf{Complementarity.} History alone (LogReg, 25 features) scores 0.4480 in CV, below the full feature set's 0.4715.
+\item \textbf{Grouped permutation importance} (Sep--Oct; Table~\ref{tab:perm}, Fig.~\ref{fig:perm}) shuffles each family together. LogReg AP drops: congestion 0.047, schedule 0.042, identifiers 0.038, entity history 0.029, day-level history 0.026. For XGBoost, schedule has the largest drop (0.056). This is descriptive; permutation breaks feature relationships and does not identify causal contributions.
 \end{itemize}
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=\columnwidth]{ablation_cv.png}
-\caption{Rolling-CV PR-AUC of cumulative feature sets, with prior (dotted) and route-history (dashed) references.}
+\caption[Feature-family ablation in rolling CV.]{Rolling-CV PR-AUC of cumulative feature sets, with prior (dotted) and route-history (dashed) references.}
 \label{fig:abl}
 \end{figure}
 
@@ -588,19 +607,19 @@ with $g_i=p_i-y_i$ and $h_i=p_i(1-p_i)$ for the log-loss.
 
 %====================================================================
 \section{Exploratory Test-Set Findings (Nov--Dec)}\label{sec:exploratory}
-Nothing in this section chose anything: the model, the calibration rule, the policies and $N$ were fixed beforehand. Treat every number as exploratory.
+The current run applies the declared selection rules before scoring the test window. Because test results were seen during development and later methodological corrections, this section is exploratory rather than an untouched final assessment.
 
 \subsection{Headline metrics}
 \begin{itemize}
-\item \textbf{Results.} The final model, LogReg (Platt, rule-selected): PR-AUC \textbf{0.394}, ROC-AUC 0.654. XGBoost (raw, rule-selected): 0.407 and 0.662. Route history: 0.353 and 0.621. Prior: 0.258 and 0.500 (Table~\ref{tab:headline}, Fig.~\ref{fig:prroc}). Both learned models beat both references.
+\item \textbf{Results.} The final model, LogReg (Platt, rule-selected): PR-AUC \textbf{0.394}, ROC-AUC 0.654. XGBoost (raw, rule-selected): 0.404 and 0.662. Route history: 0.353 and 0.621. Prior: 0.258 and 0.500 (Table~\ref{tab:headline}, Fig.~\ref{fig:prroc}). Both learned models have higher observed AP than the references.
 \item \textbf{Platt is monotone.} LogReg (Platt) and LogReg (raw) rank identically; they differ in calibration (ECE 0.082 against 0.019), which is the subject of the calibration subsection below.
-\item \textbf{The prior's low ECE (0.007) is not skill.} A constant at the training base rate is calibrated when the test base rate (25.8\%) happens to be close to it; its equal-mass ECE (0.084) and its PR-AUC expose it.
-\item \textbf{Day-block bootstrap} (Table~\ref{tab:boot}). XGBoost minus LogReg is $+0.013$ PR-AUC with 95\% CI $[-0.010,+0.041]$, which includes zero, in line with CV; for ROC-AUC the interval is $[-0.012,+0.029]$.
+\item \textbf{The prior's low ECE (0.007) is marginal calibration.} Its constant prediction happens to be close to the test base rate, but AP equals that base rate and ROC-AUC is 0.5: it provides no flight-specific discrimination. Its equal-mass ECE (0.084) reflects the tied-score implementation limitation and is not evidence of ranking skill or failure.
+\item \textbf{Day-block bootstrap} (Table~\ref{tab:boot}). XGBoost minus LogReg is $+0.010$ AP with 95\% CI $[-0.013,+0.037]$; the ROC-AUC interval is $[-0.013,+0.027]$. Both include zero; neither establishes a difference or equivalence.
 \item \textbf{By month} (Table~\ref{tab:bymonth}, appendix). The test window is split into November and December, because the base rate differs strongly (18.1\% vs 33.5\%).
 \end{itemize}
 
 \begin{table*}[!t]
-\caption{Test metrics (Nov--Dec). Oracle rec.\ is the best recall at precision $\ge0.40$ with the threshold tuned on test labels: comparison only.}
+\caption[Test ranking and calibration metrics.]{Test metrics (Nov--Dec). Oracle rec.\ is the best recall at precision $\ge0.40$ with the threshold tuned on test labels: comparison only.}
 \label{tab:headline}
 \centering\tabsize
 \input{tables/headline_test.tex}
@@ -622,9 +641,9 @@ Nothing in this section chose anything: the model, the calibration rule, the pol
 
 \subsection{Operating policies}
 \begin{itemize}
-\item \textbf{Primary (daily top 10\%), LogReg.} Precision \textbf{0.444}, recall 0.173, lift \textbf{1.72}. XGBoost: 1.68; route history 1.39; prior 0.94, i.e.\ random (Table~\ref{tab:policy}).
-\item \textbf{Stable relative precision.} Relative precision is stable between Sep--Oct (precision 0.303, lift 1.93) and Nov--Dec; absolute precision rises with the base rate.
-\item \textbf{Secondary (frozen threshold).} LogReg flags 3.8\% of flights in Sep--Oct but 7.5\% in Nov--Dec, because the score distribution moved with the base rate: a fixed threshold \textbf{does not transfer} across seasons. The prior never reaches precision 0.40, so its threshold is infinite and it flags nothing.
+\item \textbf{Primary (daily top 10\%), LogReg.} Precision \textbf{0.445}, recall 0.173, lift \textbf{1.72}. XGBoost lift is 1.67; route history 1.39; the seeded random prior ranking achieves 0.94 in this realisation (Table~\ref{tab:policy}).
+\item \textbf{Capacity and precision.} Calibration-window precision is 0.303 (lift 1.93), compared with 0.445 (lift 1.72) on test. Absolute precision rises while lift falls; fixed daily capacity does not imply invariant ranking quality.
+\item \textbf{Secondary (frozen threshold).} The LogReg threshold 0.330 targets calibration precision at least 0.40. Test precision is 0.495 and recall 0.142, flagging 7.4\% of flights; calibration flags 3.8\%. The review load changes across windows, even though the empirical precision target is met on this test set. The prior never meets the calibration precision target and flags nothing.
 \end{itemize}
 
 \begin{table*}[!t]
@@ -636,15 +655,15 @@ Nothing in this section chose anything: the model, the calibration rule, the pol
 
 \subsection{Calibration under seasonal shift}
 \begin{itemize}
-\item \textbf{Static Platt.} Fitted on calm Sep--Oct (15.7\% late), it scales risk \emph{downward}: right for November (ECE 0.021) and badly wrong for December (\textbf{0.142}; base rate 33.5\%). Isotonic behaves like Platt. \textbf{The static rule fails in December.}
-\item \textbf{Raw LogReg} looks well calibrated overall (0.019) only because the training and test base rates happen to be close: a coincidence of this split, not a robust property.
-\item \textbf{Rolling Platt ($N=28$)} tracks the shift: test ECE 0.027 for LogReg (November 0.007, December 0.050) and 0.024 for XGBoost. $N=14$ adapts faster (0.021) and $N=56$ lags (0.051), but only $N=28$ was declared in advance.
+\item \textbf{Static Platt.} Fitted on eligible calm Sep--Oct outcomes, it scales risk \emph{downward}: November ECE is 0.022, but December ECE is \textbf{0.143} at a base rate of 33.5\%. Isotonic behaves similarly. \textbf{The static rule fails in December.}
+\item \textbf{Raw LogReg} has low overall ECE (0.019), but November and December ECE are 0.056 and 0.059. The aggregate masks opposite monthly probability errors; it does not establish calibration across seasons.
+\item \textbf{Rolling Platt ($N=28$)} improves probability quality in this run: test ECE 0.027 for LogReg (November 0.006, December 0.050) and 0.026 for XGBoost. LogReg sensitivity values are 0.022 at $N=14$ and 0.051 at $N=56$; these are exploratory comparisons, while $N=28$ was declared in advance.
 \item \textbf{Shape versus level.} Raw predictions follow the \emph{shape} of the season but compress it toward the middle (Fig.~\ref{fig:drift}).
-\item \textbf{Interpretation.} This matches the known behaviour of post-hoc calibration under dataset shift \cite{guo2017calibration,ovadia2019shift}: a frozen calibrator breaks when the calibration data stop resembling deployment data, and the remedy is to recalibrate continuously on recent \emph{known} outcomes (Table~\ref{tab:calib}, Fig.~\ref{fig:rel}).
+\item \textbf{Interpretation.} The result motivates monitoring calibration under shift \cite{ovadia2019shift} and testing updates on recent \emph{known} outcomes. Rolling recalibration improves this run but is not guaranteed to succeed under every shift (Table~\ref{tab:calib}, Fig.~\ref{fig:rel}).
 \end{itemize}
 
 \begin{table*}[!t]
-\caption{Calibration of every variant on test, November and December.}
+\caption[Calibration by test month and variant.]{Calibration of every variant on test, November and December.}
 \label{tab:calib}
 \centering\tabsize
 \input{tables/calibration_study_compact.tex}
@@ -653,7 +672,7 @@ Nothing in this section chose anything: the model, the calibration rule, the pol
 \begin{figure}[t]
 \centering
 \includegraphics[width=\columnwidth]{reliability_logreg_test.png}
-\caption{Reliability of logistic regression on test: raw, static Platt, rolling Platt, route history.}
+\caption[LogReg reliability on test.]{Reliability of logistic regression on test: raw, static Platt, rolling Platt, route history.}
 \label{fig:rel}
 \end{figure}
 
@@ -666,12 +685,12 @@ Nothing in this section chose anything: the model, the calibration rule, the pol
 
 \subsection{Ablation on test}
 \begin{itemize}
-\item \textbf{LogReg.} Entity history is confirmed ($+0.032$, CI $[+0.015,+0.049]$); congestion ($+0.007$) and day-level history ($+0.009$) have intervals that include zero. These are confirmations only; the decisions came from CV.
-\item \textbf{XGBoost.} Entity history shows $+0.052$ on test although CV showed no gain: an unresolved disagreement, so we make no claim for XGBoost's ablation (Table~\ref{tab:abl}).
+\item \textbf{LogReg.} Entity history has a positive exploratory difference ($+0.032$, CI $[+0.015,+0.049]$); congestion ($+0.007$) and day-level history ($+0.009$) intervals include zero. These are subset diagnostics at the selected $C$, not independent confirmations.
+\item \textbf{XGBoost.} Entity history shows $+0.055$ on test although its mean CV gain is slightly negative: an unresolved difference across periods, with hyperparameters held fixed (Table~\ref{tab:abl}).
 \end{itemize}
 
 \begin{table*}[!t]
-\caption{Ablation steps: CV gain (selection evidence) and test difference with 95\% CI (exploratory).}
+\caption[Ablation: CV gains and exploratory test differences.]{Ablation steps: CV gain (selection evidence) and test difference with 95\% CI (exploratory).}
 \label{tab:abl}
 \centering\tabsize
 \input{tables/ablation_steps.tex}
@@ -692,10 +711,10 @@ Nothing in this section chose anything: the model, the calibration rule, the pol
 
 \subsection{Covariate shift}
 \begin{itemize}
-\item \textbf{Methods.} Population stability index (PSI; training as reference; above 0.25 is a large shift) and adversarial validation (a classifier trained to separate training rows from later rows) \cite{rabanser2019failing} explain the calibration behaviour.
+\item \textbf{Methods.} Population stability index (PSI; training as reference; 0.25 is a heuristic warning level) and adversarial validation (a classifier separating training from later rows) \cite{rabanser2019failing} describe distribution change. They do not prove its causes or directly establish calibration failure.
 \item \textbf{Adversarial validation} (Table~\ref{tab:adv}). All features together separate training from later periods perfectly (AUC 1.00). By family: identifiers nearly stable (0.56), schedule moderately (0.78 against Sep--Oct, 0.92 against test), congestion strongly (0.98, 0.96) because daily volumes differ by season, and history features completely, as designed.
 \item \textbf{PSI} (Table~\ref{tab:psi}, Fig.~\ref{fig:psi}). \texttt{days\_to\_holiday} shifts most into Nov--Dec (4.8) because Thanksgiving, Christmas and New Year fall in the test window; the history rates move most into Sep--Oct.
-\item \textbf{Implication.} Day-level history takes one value per day, so it identifies the period trivially: a memorisation risk for flexible models, and a reason a frozen calibrator breaks.
+\item \textbf{Implication.} Some day-level features are shared across an entire date and strongly identify the period. This raises a memorisation concern for flexible models; period separability alone does not show that such memorisation occurred or caused the calibration errors.
 \end{itemize}
 
 \begin{figure}[t]
@@ -707,7 +726,7 @@ Nothing in this section chose anything: the model, the calibration rule, the pol
 
 %====================================================================
 \section{Decision-Support Analysis: Rescheduling Candidates}\label{sec:resched}
-The brief asks for rescheduling. The data contain no cost, aircraft-rotation or schedule-change model, so what we can demonstrate is whether the model's \emph{daily ranking} concentrates delayed flights at the top, which is the quantity a capacity-limited review desk uses.
+The brief requests an offline what-if rescheduling analysis under explicit assumptions. The implemented Phase~1 analysis supplies its candidate-selection component: whether daily risk ranking concentrates delayed flights for review. It does not alter schedules or estimate the resulting delays. A full what-if simulation remains an outstanding deliverable, with feasibility and intervention effects stated separately below.
 
 \subsection{Design}
 \begin{itemize}
@@ -719,15 +738,15 @@ The brief asks for rescheduling. The data contain no cost, aircraft-rotation or 
 
 \subsection{Results}
 \begin{itemize}
-\item \textbf{Top 5\%} ($\approx$45 flights/day). LogReg precision \textbf{0.469}, lift 1.82, i.e.\ \textbf{47 delayed per 100 flagged}, against 39 for route history and 25 for random.
-\item \textbf{Top 10\%.} Precision 0.444, recall 0.173, lift 1.72 (identical to the primary policy of Sec.~\ref{sec:exploratory}); about 40 delayed flights caught per day against about 32 for route history and 22 for random.
+\item \textbf{Top 5\%} ($\approx$45 flights/day). LogReg precision \textbf{0.470}, lift 1.82, i.e.\ \textbf{47 delayed per 100 flagged}; about 21 delayed flights captured per day, against 17 for route history and 11 for the random prior ranking.
+\item \textbf{Top 10\%.} Precision 0.445, recall 0.173, lift 1.72 (identical to the primary policy of Sec.~\ref{sec:exploratory}); about 40 delayed flights captured per day against about 32 for route history and 22 for the prior ranking.
 \item \textbf{Top 20\%} ($\approx$177 flights/day). Precision 0.406, lift 1.57, recall 0.315, about 72 delayed flights caught per day (route history about 60, random about 45).
 \item \textbf{The trade-off.} Widening the desk from 5\% to 20\% catches more delays but with lower precision: the extra $\approx$133 flights per day are late about 38\% of the time, against 47\% for the top 5\%. The ranking therefore degrades smoothly, with no cliff.
 \item \textbf{Ordering holds at every $k$.} LogReg $\ge$ XGBoost $>$ route history $>$ prior (Table~\ref{tab:resched}); LogReg versus XGBoost is not a distinguished difference (Sec.~\ref{sec:exploratory}). Random flagging yields about 25 per 100 at every $k$, i.e.\ the base rate, as it should.
 \end{itemize}
 
 \begin{table*}[!t]
-\caption{Rescheduling-candidate analysis on the test window: daily top-$k\%$ by risk.}
+\caption[Daily review-candidate ranking.]{Rescheduling-candidate analysis on the test window: daily top-$k\%$ by risk.}
 \label{tab:resched}
 \centering\tabsize
 \input{tables/rescheduling.tex}
@@ -736,7 +755,7 @@ The brief asks for rescheduling. The data contain no cost, aircraft-rotation or 
 \subsection{How to read it}
 \begin{itemize}
 \item \textbf{Capacity as the design variable.} A desk that can review only 5\% of flights should expect about 47 true delays per 100 reviews; one that can review 20\% should expect about 41. The marginal value of added capacity falls, which is useful when staffing the desk.
-\item \textbf{Why rank-based.} Because it uses within-day ranks, the policy is unaffected by the December calibration failure (Sec.~\ref{sec:exploratory}); a fixed probability threshold is not portable across seasons, a daily capacity share is.
+\item \textbf{Why rank-based.} A daily share maintains the specified review capacity. The positive-slope static Platt mapping preserves LogReg's ordering, so its December calibration error does not change these selections; their precision and recall can still deteriorate as conditions change.
 \item \textbf{Failure modes.} The ranking cannot know which delays are \emph{preventable}; flights delayed by weather or air-traffic programmes are flagged but cannot be saved by rescheduling. Recall at 10\% is only 0.173, so most delayed flights are never flagged.
 \end{itemize}
 
@@ -744,22 +763,23 @@ The brief asks for rescheduling. The data contain no cost, aircraft-rotation or 
 \begin{itemize}
 \item \textbf{Shows:} \textbf{ranking quality} for a capacity-limited review desk.
 \item \textbf{Does not show:} \textbf{realised operational savings}. There is no cost model for delay or for a schedule change, so the benefit of moving or buffering a flight cannot be estimated.
-\item \textbf{Missing for a full rescheduling study:} a cost model for delays and for schedule changes, feasibility constraints (gates, crews, slots, rotations), and the causal effect of an intervention on the flight's outcome. The project brief's exact wording of rescheduling has not been supplied; if it requires more than this, those parts are missing and are not invented here.
+\item \textbf{Missing for a full what-if study:} an explicit recommendation rule, feasible alternative schedules (gates, crews, slots and rotations), an assumed effect of each intervention, and comparison of predicted risk or delay cost before and after the proposed change. The current dataset does not establish causal intervention effects; any later simulated benefit must be labelled assumption-dependent.
 \end{itemize}
 
 %====================================================================
 \section{Discussion and Limitations}\label{sec:discussion}
 \subsection{What the evidence supports}
 \begin{itemize}
-\item \textbf{A leakage-free ranking is worth acting on.} The final model flags the riskiest tenth of each day's flights with $1.72\times$ the base-rate precision, against $1.39\times$ for route history alone; the gap to the simple heuristic is the value added by the model.
-\item \textbf{Hand-built summaries leave little interaction structure for trees.} XGBoost is not distinguished from logistic regression in CV or on test: the smoothed history features already carry most of the usable signal. That is the gap a later deep temporal model would target.
-\item \textbf{Each feature family earns its place for LogReg.} Congestion, entity history and day-level history each improve it in CV, and entity history is also confirmed on test.
-\item \textbf{Calibration needs maintenance.} A frozen recalibrator fitted on a calm period breaks under seasonal prior shift; a rank-based daily policy is portable and a fixed threshold is not.
+\item \textbf{The ranking supports candidate review.} LogReg's top tenth has $1.72\times$ base-rate precision, against $1.39\times$ for route history. This demonstrates concentration of observed delays, not prevention or financial benefit.
+\item \textbf{Representation remains a hypothesis.} The learned-model difference is uncertain on test. This does not establish whether manual summaries exhaust the usable interaction structure; later embedding MLP experiments should test that question fairly.
+\item \textbf{Feature families help LogReg in these CV checks.} Congestion, entity and day-level history increase mean AP at the selected $C$; entity history also has a positive exploratory test difference.
+\item \textbf{Calibration needs monitoring.} Static Platt fails in December. Ranking fixes review capacity, while frozen probability thresholds have a changing load; neither policy guarantees stable quality under shift.
 \end{itemize}
 
 \subsection{Negative and unresolved results}
 \begin{itemize}
-\item \textbf{The static calibration rule fails} in December (ECE 0.142). It is reported as is.
+\item \textbf{The static calibration rule fails} in December (ECE 0.143). It is reported as is.
+\item \textbf{Equal-mass ECE} is unstable for tied predictions in the current implementation. The fixed-width ECE and Brier discussion remains separate from this unresolved diagnostic issue.
 \item \textbf{XGBoost's ablation} disagrees between CV and test for entity history.
 \item \textbf{The final-model choice} would have reversed under the optimistic in-fold score.
 \item \textbf{The original month-feature and day-level justifications} relied on test numbers and were withdrawn and replaced by CV evidence.
@@ -783,44 +803,68 @@ The brief asks for rescheduling. The data contain no cost, aircraft-rotation or 
 \subsection{Future work}
 \begin{itemize}
 \item Add archived weather \emph{forecasts} issued before the clock.
-\item A deep temporal model on the same clock, to test whether it extracts structure that tree ensembles and logistic regression miss.
+\item A compact MLP with learned airline, origin and destination embeddings, evaluated against the same ML features, clock and date splits. A temporal model is optional only after constructing correctly ordered histories from available past outcomes.
 \item Multi-year data to test cross-year generalisation of the calibration findings.
-\item A cost model and feasibility constraints for a genuine rescheduling study.
+\item An offline what-if recommendation rule with feasible schedule alternatives, explicit assumptions about intervention effects, and before/after risk or cost comparisons.
 \end{itemize}
 
 %====================================================================
 \section{Conclusion}\label{sec:conclusion}
 \begin{itemize}
-\item \textbf{Clock first.} Features admit only outcomes known at 20:00 on $D-1$; the quantified leak ($\approx$0.011 CV PR-AUC) shows why this matters, and two tests (with a positive control) guard it.
-\item \textbf{Models.} Logistic regression is the declared final model (CV PR-AUC 0.4705 against 0.4450 for XGBoost as deployed), but the two are not statistically distinguished and the choice rests on a pre-declared rule.
-\item \textbf{Policy.} The daily top 10\% reaches precision 0.444 and lift 1.72, and the ranking degrades smoothly as review capacity grows; a rolling recalibration (ECE 0.027) succeeds where the static rule (ECE 0.082) fails in December.
+\item \textbf{Clock first.} The 20:00 $D-1$ cutoff governs predictors, training labels, CV selection, calibration and thresholds. Moving the clock to midnight raises CV AP by about 0.010; feature and fitting-boundary regression tests guard the stated protocol.
+\item \textbf{Models.} Logistic regression is the declared final model (CV PR-AUC 0.4715 against fixed-tree XGBoost 0.4474). The test bootstrap fails to establish a model difference; it does not prove equivalence.
+\item \textbf{Policy.} The daily top 10\% reaches precision 0.445 and lift 1.72 in this dataset. Rolling recalibration improves ECE to 0.027 compared with static Platt 0.082 overall and 0.143 in December. Candidate ranking does not demonstrate delay reductions.
 \item \textbf{Honesty.} Selection evidence (CV, Sep--Oct) is kept apart from exploratory test findings, and every test exposure is disclosed.
-\item \textbf{Next.} Archived weather forecasts are the natural additional signal; a deep temporal model belongs to the next phase.
+\item \textbf{Next.} Later work will test the brief's embedding MLP, optional ordered-history temporal model, archived forecasts and an explicit offline what-if recommendation rule.
 \end{itemize}
 
 \section*{Reproducibility}
-\texttt{bash scripts/reproduce.sh} deletes generated artefacts and rebuilds the pipeline, four executed notebooks (which assert their tables against the saved results), the report figures and tables, the test suite, the number check, and this PDF. All randomness is seeded. Table~\ref{tab:config} lists the final configuration.
+\begingroup\raggedright
+Python~3.12 and dependencies pinned in \texttt{requirements.txt} are used in a project-local \texttt{.venv}; macOS XGBoost also needs OpenMP. Download the Kaggle CSV to \texttt{data/raw/flights.csv}, which is excluded from Git, and register the \texttt{aerocast} kernel. From the repository root, \texttt{python -B scripts/run\_phase1.py} regenerates \texttt{results/} and \texttt{figures/}. Execute the four notebooks using \texttt{python -B -m nbconvert}; notebooks 03 and 04 check their tables against saved results. The verified MacBook Pro run took about 22 minutes for the pipeline and passed 36 tests; runtime varies by machine. All randomness is seeded (42). Report assets are exported with \texttt{scripts/export\_report\_assets.py}; \texttt{scripts/check\_report\_numbers.py} checks quoted numeric strings, but does not validate their surrounding interpretation. PDF compilation and visual review are separate checks. The full \texttt{scripts/reproduce.sh} additionally cleans generated/report assets and attempts a PDF build if a LaTeX engine is installed. Table~\ref{tab:config} lists the configuration. Changing datasets requires reviewing the date splits, calendar/time-zone assumptions and dataset-specific assertions, not just matching columns.
+
+\par\endgroup
+
+\begin{table}[t]
+\caption[Repository layout.]{Repository layout and reproducibility responsibilities.}
+\label{tab:layout}
+\centering\tabsize
+\begin{tabular}{@{}P{2.3cm}P{5.5cm}@{}}
+\toprule
+Directory & Role\\
+\midrule
+\texttt{data/raw/} & Local raw CSV; excluded from Git\\
+\texttt{src/aerocast/} & Shared data, features, models, evaluation and pipeline logic\\
+\texttt{scripts/} & Pipeline runner, report export and numeric checks\\
+\texttt{notebooks/} & Four executed stages importing shared logic\\
+\texttt{tests/} & Leakage, availability, time-zone, metric and export checks\\
+\texttt{results/} & Saved CSV/JSON tables and prediction audit trail\\
+\texttt{figures/} & Generated PNG plots\\
+\texttt{docs/} & Stage explanations, protocol and limitations\\
+\texttt{report/} & IEEE source, bibliography, PDF and exported assets\\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \appendices
 \section{Additional Tables and Figures}
 Supporting material: full ablation (Table~\ref{tab:ablfull}), test metrics by month (Table~\ref{tab:bymonth}), grouped permutation importance (Table~\ref{tab:perm}), XGBoost gain (Fig.~\ref{fig:xgbgain}), XGBoost reliability (Fig.~\ref{fig:relxgb}), the $C$ curve (Fig.~\ref{fig:cvlr}) and why a single validation month was abandoned (Fig.~\ref{fig:tree}).
 
 \begin{table*}[!t]
-\caption{History settings tuned jointly with $C$ (rolling-CV PR-AUC of LogReg). Clock 20 is deployed; the last rows move the clock to 00:00 and 24:00.}
+\caption[Joint history tuning and clock sensitivity.]{History settings tuned jointly with $C$ (rolling-CV PR-AUC of LogReg). Clock 20 is deployed; the last rows move the clock to 00:00 and 24:00.}
 \label{tab:tuning}
 \centering\tabsize
 \input{tables/history_tuning.tex}
 \end{table*}
 
 \begin{table*}[!t]
-\caption{Rolling-CV PR-AUC without and with cyclic month features.}
+\caption[Cyclic month-feature comparison.]{Rolling-CV PR-AUC without and with cyclic month features.}
 \label{tab:month}
 \centering\tabsize
 \input{tables/month_feature_cv.tex}
 \end{table*}
 
 \begin{table}[!t]
-\caption{LogReg: rolling-CV PR-AUC by $C$ (mean, sd over four folds).}
+\caption[LogReg regularisation search.]{LogReg: rolling-CV PR-AUC by $C$ (mean, sd over four folds).}
 \label{tab:cgrid}
 \centering\tabsize
 \input{tables/logreg_c_grid.tex}
@@ -841,14 +885,14 @@ Supporting material: full ablation (Table~\ref{tab:ablfull}), test metrics by mo
 \end{table*}
 
 \begin{table}[!t]
-\caption{Grouped permutation importance: PR-AUC drop on Sep--Oct.}
+\caption[Grouped permutation importance.]{Grouped permutation importance: PR-AUC drop on Sep--Oct.}
 \label{tab:perm}
 \centering\tabsize
 \input{tables/permutation_importance.tex}
 \end{table}
 
 \begin{table*}[!t]
-\caption{Adversarial validation: AUC of a classifier separating training rows from later rows.}
+\caption[Adversarial validation.]{Adversarial validation: AUC of a classifier separating training rows from later rows.}
 \label{tab:adv}
 \centering\tabsize
 \input{tables/adversarial.tex}
@@ -862,14 +906,14 @@ Supporting material: full ablation (Table~\ref{tab:ablfull}), test metrics by mo
 \end{table*}
 
 \begin{table*}[!t]
-\caption{Full ablation: cumulative feature sets for both models and the references.}
+\caption[Full feature-family ablation.]{Full ablation: cumulative feature sets for both models and the references.}
 \label{tab:ablfull}
 \centering\tabsize
 \input{tables/ablation.tex}
 \end{table*}
 
 \begin{table}[!t]
-\caption{Final configuration (all fixed by CV or Sep--Oct, none by test).}
+\caption[Final configuration.]{Final configuration (all fixed by CV or Sep--Oct, none by test).}
 \label{tab:config}
 \centering\tabsize
 \begin{tabular}{@{}lP{4.6cm}@{}}
@@ -880,11 +924,12 @@ Decision clock & 20:00 NYC on $D-1$\\
 Target & arrival delay $\ge15$ min\\
 Shrinkage $m$, window & 5, 14 days\\
 LogReg $C$ & 0.1\\
-XGBoost & depth 2, lr 0.1, mcw 100, colsample 0.8, $\lambda=10$, 143 trees\\
+XGBoost & depth 2, lr 0.1, mcw 20, row subsample 0.8, colsample 0.5, $\lambda=1$, 148 trees\\
 Final model & LogReg, Platt (rule-selected)\\
 Rolling calibration & Platt, $N=28$ days\\
 Primary policy & daily top 10\%\\
-Seed & fixed (all randomness)\\
+Secondary policy & frozen threshold 0.330 targeting calibration precision $\ge0.40$\\
+Seed & 42\\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -899,7 +944,7 @@ Seed & fixed (all randomness)\\
 \begin{figure}[!t]
 \centering
 \includegraphics[width=\columnwidth]{reliability_xgboost_test.png}
-\caption{Reliability of XGBoost on test: raw, static Platt, rolling Platt, route history.}
+\caption[XGBoost reliability on test.]{Reliability of XGBoost on test: raw, static Platt, rolling Platt, route history.}
 \label{fig:relxgb}
 \end{figure}
 
@@ -913,7 +958,7 @@ Seed & fixed (all randomness)\\
 \begin{figure}[!t]
 \centering
 \includegraphics[width=\columnwidth]{train_single_month_tree_curve.png}
-\caption{Why a single validation month was abandoned: XGBoost PR-AUC on September and October vs number of trees.}
+\caption[Single-month tree-count diagnostic.]{Why a single validation month was abandoned: XGBoost PR-AUC on September and October vs number of trees.}
 \label{fig:tree}
 \end{figure}
 
