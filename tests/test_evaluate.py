@@ -79,7 +79,10 @@ def test_platt_fixes_a_monotone_distortion(calibrated):
 def test_select_calibrator_keeps_raw_on_near_tie(calibrated):
     y, p = calibrated
     months = np.where(np.arange(p.size) < p.size // 2, 9, 10)
-    choice, table = evaluate.select_calibrator(p, y, months, 9, 10, min_gain=0.005)
+    dates = pd.to_datetime(np.where(months == 9, "2013-09-01", "2013-10-01")).to_numpy()
+    choice, table = evaluate.select_calibrator(
+        p, y, months, 9, 10, min_gain=0.005, dates=dates,
+        avail_dates=dates + np.timedelta64(1, "D"), selection_date="2013-11-01")
     assert choice == "raw"  # raw is already calibrated: no recalibrator earns its place
     assert {"raw", "platt", "isotonic"} == set(table["calibrator"])
 
