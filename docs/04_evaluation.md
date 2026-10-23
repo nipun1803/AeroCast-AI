@@ -18,60 +18,62 @@ Evidence is kept apart: **Part A** is what any decision rests on (CV / Sep–Oct
 
 | model | calibration | cv_pr_auc_mean | cv_pr_auc_std |
 |---|---|---|---|
-| Prior (base rate) | none | 0.2775 | 0.0483 |
-| Route history | none | 0.3476 | 0.0601 |
-| LogReg (as deployed) | raw | 0.4705 | 0.0706 |
-| XGBoost (as deployed, fixed trees) | raw | 0.4450 | 0.0729 |
-| XGBoost (in-fold early stopping, optimistic; not used) | raw | 0.4754 | 0.0673 |
+| Prior (base rate) | none | 0.2777 | 0.0481 |
+| Route history | none | 0.3477 | 0.0601 |
+| LogReg (as deployed) | raw | 0.4715 | 0.0710 |
+| XGBoost (as deployed, fixed trees) | raw | 0.4474 | 0.0686 |
+| XGBoost (in-fold early stopping, optimistic; not used) | raw | 0.4761 | 0.0703 |
 
-**LogReg and XGBoost are not statistically distinguished** (CV 0.4705 vs 0.4450, fold sd about 0.07; test CI [-0.010, +0.041]). The final-model choice rests on the **rule declared before test**. Both learned models clearly beat Route history (0.3476) and the prior (0.2775).
+LogReg has the higher development CV mean (0.4715 versus 0.4474), so it is selected by the declared rule. The test AP-difference interval (XGBoost − LogReg, [-0.013, +0.037]) includes zero: it does not establish a test-performance difference, equivalence, or noninferiority. Test exposure during development remains disclosed. The development CV reference scores are route history 0.3477 and prior 0.2777.
 
 ### A.2 History settings, decision clock, month (CV)
 
-m, window and C are tuned jointly: the CV-best pair is **m = 5, window = 14, C = 0.1 (unchanged by the joint re-tuning)**; the 20:00 clock scores 0.4705 vs 0.4587 (2-day lag) and 0.4812 (leaky 24:00 clock). No month feature (LogReg 0.4705 vs 0.4686 with month). Details: [02](02_feature_engineering.md).
+The selected settings remain **m = 5, window = 14, C = 0.1**. The 20:00 clock scores 0.4715, compared with 0.4589 at 00:00 (approximately a two-day lag) and 0.4814 at 24:00. The 24:00 scenario permits outcomes unavailable at the chosen 20:00 deadline. These scenarios move fitting and selection cutoffs as well as feature-history cutoffs, so their score differences do not isolate a feature-leakage effect.
+
+Adding cyclic month features lowers mean CV AP for both models: LogReg 0.4715 → 0.4691 and fixed-tree XGBoost 0.4474 → 0.4405. For each model, two folds improve and two worsen. Training contains only months 1–8 in one year; these checks do not establish a reusable seasonal effect. **Decision: no month feature**, supported by development CV. The earlier test-based justification remains withdrawn. Details: [02](02_feature_engineering.md).
 
 ### A.3 Calibration rule, decided on Sep–Oct
 
-Rule (fixed before test): fit Platt and isotonic on **September**, check ECE on **October**, keep **raw** unless the best recalibrator wins by more than **0.005**; then refit on Sep–Oct.
+Rule (fixed before test): fit Platt and isotonic on **September**, check ECE on **October**, keep **raw** unless the best recalibrator wins by more than **0.005**; then refit on eligible Sep–Oct outcomes known before the first November prediction (55,377 labels; 251 excluded). September fitting and October checking also enforce their own availability deadlines.
 
 | model | calibrator | check_ece | check_ece_equal_mass | check_brier | gain_vs_raw |
 |---|---|---|---|---|---|
-| logreg | raw | 0.0609 | 0.0614 | 0.1404 | 0.0000 |
-| logreg | platt | 0.0349 | 0.0349 | 0.1378 | 0.0260 |
-| logreg | isotonic | 0.0362 | 0.0356 | 0.1386 | 0.0247 |
-| xgboost | raw | 0.0220 | 0.0245 | 0.1386 | 0.0000 |
-| xgboost | platt | 0.0465 | 0.0465 | 0.1411 | -0.0245 |
-| xgboost | isotonic | 0.0468 | 0.0468 | 0.1413 | -0.0248 |
+| logreg | raw | 0.0625 | 0.0628 | 0.1398 | 0.0000 |
+| logreg | platt | 0.0329 | 0.0329 | 0.1368 | 0.0296 |
+| logreg | isotonic | 0.0342 | 0.0355 | 0.1376 | 0.0283 |
+| xgboost | raw | 0.0199 | 0.0224 | 0.1372 | 0.0000 |
+| xgboost | platt | 0.0422 | 0.0422 | 0.1393 | -0.0223 |
+| xgboost | isotonic | 0.0421 | 0.0421 | 0.1396 | -0.0223 |
 
-Outcome: **LogReg → Platt (rule-selected)** (October ECE gain 0.026); **XGBoost → raw (rule-selected)**. Causal **rolling Platt** (refit daily on the trailing N = 28 days of known outcomes; N fixed a priori, 14/56 reported as sensitivity only) is the adaptive alternative, evaluated in Part B.
+Outcome: **LogReg → Platt (rule-selected)** (October ECE gain 0.0296); **XGBoost → raw (rule-selected)**. Causal **rolling Platt** (refit daily on the trailing N = 28 days of known outcomes; N fixed a priori, 14/56 reported as sensitivity only) is the adaptive alternative, evaluated in Part B.
 
 ### A.4 Ablation: CV evidence
 
 | model | calibration | step | cv_gain_mean | cv_folds_improved |
 |---|---|---|---|---|
-| LogReg | raw | + congestion | 0.0209 | 4/4 |
-| LogReg | raw | + history_entity | 0.0195 | 4/4 |
-| LogReg | raw | + history_day | 0.0110 | 3/4 |
-| XGBoost | raw | + congestion | 0.0118 | 3/4 |
-| XGBoost | raw | + history_entity | -0.0019 | 2/4 |
-| XGBoost | raw | + history_day | -0.0040 | 3/4 |
+| LogReg | raw | + congestion | 0.0204 | 4/4 |
+| LogReg | raw | + history_entity | 0.0203 | 4/4 |
+| LogReg | raw | + history_day | 0.0114 | 3/4 |
+| XGBoost | raw | + congestion | 0.0105 | 3/4 |
+| XGBoost | raw | + history_entity | -0.0004 | 2/4 |
+| XGBoost | raw | + history_day | -0.0007 | 3/4 |
 
-LogReg (raw): congestion +0.021 (4/4 folds), entity history +0.020 (4/4 folds), day-level history +0.011 (3/4 folds). XGBoost (raw): congestion +0.012 (3/4 folds), entity history -0.002 (2/4 folds), day-level history -0.004 (3/4 folds). No claim rests on XGBoost's ablation (CV and test disagree for entity history).
+At the selected hyperparameters, LogReg mean CV AP increases with congestion (+0.0204, 4/4 folds), entity history (+0.0203, 4/4), and day-level history (+0.0114, 3/4). For XGBoost, the corresponding mean gains are +0.0105 (3/4), −0.0004 (2/4), and −0.0007 (3/4). The last result has a slightly negative mean despite improvement in three folds. These are development comparisons at the chosen settings, not independent estimates after nested selection.
 
 | model | calibration | features | n_features | cv_pr_auc_mean | cv_pr_auc_std |
 |---|---|---|---|---|---|
-| Prior (base rate) | none | (baseline) | 0 | 0.2775 | 0.0483 |
-| Route history | none (smoothed rate) | (baseline) | 0 | 0.3476 | 0.0601 |
-| LogReg | raw | schedule + ids | 13 | 0.4191 | 0.0643 |
-| LogReg | raw | + congestion | 20 | 0.4400 | 0.0729 |
-| LogReg | raw | + history_entity | 38 | 0.4595 | 0.0727 |
-| LogReg | raw | + history_day | 45 | 0.4705 | 0.0706 |
-| LogReg | raw | history only | 25 | 0.4478 | 0.0753 |
-| XGBoost | raw | schedule + ids | 13 | 0.4391 | 0.0754 |
-| XGBoost | raw | + congestion | 20 | 0.4509 | 0.0886 |
-| XGBoost | raw | + history_entity | 38 | 0.4490 | 0.0769 |
-| XGBoost | raw | + history_day | 45 | 0.4450 | 0.0729 |
-| XGBoost | raw | history only | 25 | 0.4231 | 0.0879 |
+| Prior (base rate) | none | (baseline) | 0 | 0.2777 | 0.0481 |
+| Route history | none (smoothed rate) | (baseline) | 0 | 0.3477 | 0.0601 |
+| LogReg | raw | schedule + ids | 13 | 0.4193 | 0.0634 |
+| LogReg | raw | + congestion | 20 | 0.4398 | 0.0714 |
+| LogReg | raw | + history_entity | 38 | 0.4601 | 0.0727 |
+| LogReg | raw | + history_day | 45 | 0.4715 | 0.0710 |
+| LogReg | raw | history only | 25 | 0.4480 | 0.0760 |
+| XGBoost | raw | schedule + ids | 13 | 0.4380 | 0.0770 |
+| XGBoost | raw | + congestion | 20 | 0.4485 | 0.0853 |
+| XGBoost | raw | + history_entity | 38 | 0.4481 | 0.0807 |
+| XGBoost | raw | + history_day | 45 | 0.4474 | 0.0686 |
+| XGBoost | raw | history only | 25 | 0.4266 | 0.0831 |
 
 ![ablation_cv](../figures/ablation_cv.png)
 
@@ -79,19 +81,19 @@ LogReg (raw): congestion +0.021 (4/4 folds), entity history +0.020 (4/4 folds), 
 
 | group | LogReg | XGBoost |
 |---|---|---|
-| categorical | 0.0376 | 0.0147 |
-| congestion | 0.0464 | 0.0150 |
-| history_day | 0.0261 | 0.0089 |
-| history_entity | 0.0287 | 0.0178 |
-| schedule | 0.0423 | 0.0537 |
+| categorical | 0.0376 | 0.0148 |
+| congestion | 0.0468 | 0.0112 |
+| history_day | 0.0264 | 0.0174 |
+| history_entity | 0.0287 | 0.0195 |
+| schedule | 0.0424 | 0.0562 |
 
-LogReg: influence ranks congestion (0.046), schedule (0.042), categorical (0.038), history_entity (0.029), history_day (0.026). XGBoost: the ranking is schedule (0.054), history_entity (0.018), congestion (0.015), categorical (0.015), history_day (0.009).
+Grouped permutation gives LogReg AP drops of congestion 0.047, schedule 0.042, categorical 0.038, entity history 0.029, and day-level history 0.026. For XGBoost: schedule 0.056, entity history 0.019, congestion 0.011, categorical 0.015, and day-level history 0.017. These describe sensitivity to shuffled feature groups; they do not identify causal effects. For XGBoost, the ordering by drop is schedule, entity history, day-level history, categorical, then congestion.
 
 ![perm_importance_groups](../figures/perm_importance_groups.png)
 
 # Part B · Exploratory test-set findings (ablation test diffs, calibration study, target sensitivity)
 
-Test = Nov–Dec 2013. Nothing below chose anything; test numbers were visible during development, so small differences are exploratory.
+Test = Nov–Dec 2013. The current rules use the development evidence described in Part A. Test numbers were visible during development, so these findings are exploratory and do not become an untouched confirmation merely by re-justifying the rules.
 
 ## B.1 Pre-specified rules on test
 
@@ -101,13 +103,13 @@ Test = Nov–Dec 2013. Nothing below chose anything; test numbers were visible d
 |---|---|---|---|---|---|---|---|
 | Prior (base rate) | none | 0.258 | 0.500 | 0.192 | 0.007 | 0.084 | 0.000 |
 | Route history | none (smoothed rate) | 0.353 | 0.621 | 0.187 | 0.037 | 0.038 | 0.244 |
-| LogReg (raw) | raw | 0.394 | 0.654 | 0.181 | 0.019 | 0.022 | 0.430 |
-| LogReg (Platt, rule-selected) | Platt (rule-selected) | 0.394 | 0.654 | 0.187 | 0.082 | 0.082 | 0.430 |
-| LogReg (rolling Platt 28d) | rolling Platt 28d (causal) | 0.392 | 0.657 | 0.181 | 0.027 | 0.026 | 0.432 |
-| XGBoost (raw, rule-selected) | raw (rule-selected) | 0.407 | 0.662 | 0.180 | 0.027 | 0.027 | 0.474 |
-| XGBoost (rolling Platt 28d) | rolling Platt 28d (causal) | 0.396 | 0.659 | 0.180 | 0.024 | 0.023 | 0.416 |
+| LogReg (raw) | raw | 0.394 | 0.654 | 0.181 | 0.019 | 0.022 | 0.431 |
+| LogReg (Platt, rule-selected) | Platt (rule-selected) | 0.394 | 0.654 | 0.187 | 0.082 | 0.082 | 0.431 |
+| LogReg (rolling Platt 28d) | rolling Platt 28d (causal) | 0.392 | 0.657 | 0.181 | 0.027 | 0.027 | 0.431 |
+| XGBoost (raw, rule-selected) | raw (rule-selected) | 0.404 | 0.662 | 0.180 | 0.027 | 0.026 | 0.462 |
+| XGBoost (rolling Platt 28d) | rolling Platt 28d (causal) | 0.394 | 0.659 | 0.181 | 0.026 | 0.025 | 0.417 |
 
-`LogReg (Platt, rule-selected)` is the model as the pre-declared rule deploys it. Its ranking equals `LogReg (raw)` (Platt is monotone), but its calibration does not: **test ECE 0.082 (Platt, rule-selected) vs 0.019 (raw) vs 0.027 (rolling Platt 28d)**. **The static rule fails in December** (below). Both learned models beat both references on PR-AUC (0.394 LogReg, 0.407 XGBoost, 0.353 route history, 0.258 prior); the prior's low ECE (0.007; equal-mass 0.084) is not skill. `oracle_recall@p0.40` is a comparison metric only.
+`LogReg (Platt, rule-selected)` is the model as the pre-declared rule deploys it. Its ranking equals `LogReg (raw)` (Platt is monotone), but its calibration does not: **test ECE 0.082 (Platt, rule-selected) vs 0.019 (raw) vs 0.027 (rolling Platt 28d)**. **The static rule fails in December** (below). Both learned models beat both references on PR-AUC (0.394 LogReg, 0.404 XGBoost, 0.353 route history, 0.258 prior); the prior's low ECE (0.007; equal-mass 0.084) is not skill. `oracle_recall@p0.40` is a comparison metric only.
 
 ### November and December
 
@@ -115,27 +117,27 @@ Test = Nov–Dec 2013. Nothing below chose anything; test numbers were visible d
 |---|---|---|---|---|---|---|---|
 | Prior (base rate) | none | test_m11 | 0.181 | 0.181 | 0.500 | 0.155 | 0.084 |
 | Route history | none (smoothed rate) | test_m11 | 0.181 | 0.221 | 0.560 | 0.149 | 0.035 |
-| LogReg (raw) | raw | test_m11 | 0.181 | 0.291 | 0.655 | 0.145 | 0.055 |
-| LogReg (Platt, rule-selected) | Platt (rule-selected) | test_m11 | 0.181 | 0.291 | 0.655 | 0.142 | 0.021 |
-| LogReg (rolling Platt 28d) | rolling Platt 28d (causal) | test_m11 | 0.181 | 0.285 | 0.650 | 0.142 | 0.007 |
-| XGBoost (raw, rule-selected) | raw (rule-selected) | test_m11 | 0.181 | 0.270 | 0.638 | 0.144 | 0.019 |
-| XGBoost (rolling Platt 28d) | rolling Platt 28d (causal) | test_m11 | 0.181 | 0.261 | 0.631 | 0.144 | 0.013 |
-| Prior (base rate) | none | test_m12 | 0.335 | 0.335 | 0.500 | 0.228 | 0.071 |
+| LogReg (raw) | raw | test_m11 | 0.181 | 0.292 | 0.655 | 0.145 | 0.056 |
+| LogReg (Platt, rule-selected) | Platt (rule-selected) | test_m11 | 0.181 | 0.292 | 0.655 | 0.142 | 0.022 |
+| LogReg (rolling Platt 28d) | rolling Platt 28d (causal) | test_m11 | 0.181 | 0.286 | 0.650 | 0.142 | 0.006 |
+| XGBoost (raw, rule-selected) | raw (rule-selected) | test_m11 | 0.181 | 0.267 | 0.634 | 0.144 | 0.017 |
+| XGBoost (rolling Platt 28d) | rolling Platt 28d (causal) | test_m11 | 0.181 | 0.259 | 0.627 | 0.144 | 0.011 |
+| Prior (base rate) | none | test_m12 | 0.335 | 0.335 | 0.500 | 0.228 | 0.070 |
 | Route history | none (smoothed rate) | test_m12 | 0.335 | 0.394 | 0.574 | 0.225 | 0.060 |
-| LogReg (raw) | raw | test_m12 | 0.335 | 0.456 | 0.632 | 0.217 | 0.060 |
-| LogReg (Platt, rule-selected) | Platt (rule-selected) | test_m12 | 0.335 | 0.456 | 0.632 | 0.233 | 0.142 |
-| LogReg (rolling Platt 28d) | rolling Platt 28d (causal) | test_m12 | 0.335 | 0.431 | 0.603 | 0.220 | 0.050 |
-| XGBoost (raw, rule-selected) | raw (rule-selected) | test_m12 | 0.335 | 0.468 | 0.635 | 0.216 | 0.064 |
-| XGBoost (rolling Platt 28d) | rolling Platt 28d (causal) | test_m12 | 0.335 | 0.442 | 0.613 | 0.217 | 0.038 |
+| LogReg (raw) | raw | test_m12 | 0.335 | 0.456 | 0.632 | 0.217 | 0.059 |
+| LogReg (Platt, rule-selected) | Platt (rule-selected) | test_m12 | 0.335 | 0.456 | 0.632 | 0.233 | 0.143 |
+| LogReg (rolling Platt 28d) | rolling Platt 28d (causal) | test_m12 | 0.335 | 0.432 | 0.603 | 0.220 | 0.050 |
+| XGBoost (raw, rule-selected) | raw (rule-selected) | test_m12 | 0.335 | 0.463 | 0.634 | 0.216 | 0.061 |
+| XGBoost (rolling Platt 28d) | rolling Platt 28d (causal) | test_m12 | 0.335 | 0.438 | 0.612 | 0.217 | 0.042 |
 
 ### LogReg vs XGBoost: day-block bootstrap (rule-selected variants)
 
 | metric | XGBoost 95% CI | LogReg 95% CI | XGB − LR 95% CI |
 |---|---|---|---|
-| pr_auc | [0.348, 0.465] | [0.34, 0.45] | [-0.01, 0.041] |
-| roc_auc | [0.633, 0.691] | [0.62, 0.682] | [-0.012, 0.029] |
+| pr_auc | [0.346, 0.466] | [0.340, 0.450] | [-0.013, +0.037] |
+| roc_auc | [0.631, 0.692] | [0.620, 0.682] | [-0.013, +0.027] |
 
-XGBoost (raw, rule-selected) is ahead by +0.013 PR-AUC but the CI [-0.010, +0.041] includes 0: **statistically indistinguishable**, consistent with A.1.
+XGBoost's test AP is higher by 0.0105, but the paired 95% interval [−0.013, +0.037] includes zero. This does not establish a difference, equivalence, or noninferiority; it does not replace the development CV selection rule.
 
 ![pr_roc_test](../figures/pr_roc_test.png)
 
@@ -153,13 +155,13 @@ XGBoost (raw, rule-selected) is ahead by +0.013 PR-AUC but the CI [-0.010, +0.04
 | Prior (base rate) | none | primary | daily top 10% | 0.101 | 0.243 | 0.095 | 0.941 | – |
 | Prior (base rate) | none | secondary | frozen thr for P>=0.4 (from Sep-Oct) | 0.000 | – | 0.000 | – | ∞ |
 | Route history | none (smoothed rate) | primary | daily top 10% | 0.101 | 0.358 | 0.139 | 1.387 | – |
-| Route history | none (smoothed rate) | secondary | frozen thr for P>=0.4 (from Sep-Oct) | 0.059 | 0.425 | 0.097 | 1.646 | 0.469 |
-| LogReg (Platt, rule-selected) | Platt (rule-selected) | primary | daily top 10% | 0.101 | 0.444 | 0.173 | 1.720 | – |
-| LogReg (Platt, rule-selected) | Platt (rule-selected) | secondary | frozen thr for P>=0.4 (from Sep-Oct) | 0.075 | 0.493 | 0.143 | 1.910 | 0.331 |
-| XGBoost (raw, rule-selected) | raw (rule-selected) | primary | daily top 10% | 0.101 | 0.435 | 0.169 | 1.683 | – |
-| XGBoost (raw, rule-selected) | raw (rule-selected) | secondary | frozen thr for P>=0.4 (from Sep-Oct) | 0.062 | 0.521 | 0.125 | 2.019 | 0.446 |
+| Route history | none (smoothed rate) | secondary | frozen thr for P>=0.4 (from Sep-Oct) | 0.059 | 0.425 | 0.097 | 1.646 | 0.468907 |
+| LogReg (Platt, rule-selected) | Platt (rule-selected) | primary | daily top 10% | 0.101 | 0.445 | 0.173 | 1.722 | – |
+| LogReg (Platt, rule-selected) | Platt (rule-selected) | secondary | frozen thr for P>=0.4 (from Sep-Oct) | 0.074 | 0.495 | 0.142 | 1.917 | 0.330087 |
+| XGBoost (raw, rule-selected) | raw (rule-selected) | primary | daily top 10% | 0.101 | 0.431 | 0.168 | 1.667 | – |
+| XGBoost (raw, rule-selected) | raw (rule-selected) | secondary | frozen thr for P>=0.4 (from Sep-Oct) | 0.088 | 0.489 | 0.167 | 1.892 | 0.416729 |
 
-**Primary result (final model, `LogReg (Platt, rule-selected)`, test): precision 0.444, recall 0.173, lift 1.72×** versus 0.94 for the prior (random flagging) and 1.39 for route history; XGBoost (raw, rule-selected) 1.68. The frozen threshold flags 3.8% of flights in Sep–Oct but 7.5% in Nov–Dec for LogReg: a fixed probability cut-off does not transfer between seasons.
+**Primary result (LogReg, static Platt rule-selected, test): precision 0.445, recall 0.173, lift 1.72×.** The prior lift is 0.94, route history 1.39, and XGBoost 1.67. The LogReg threshold frozen on eligible Sep–Oct outcomes is 0.330087; it flags 3.8% of calibration flights and 7.4% of test flights. Test precision is 0.495 and recall 0.142. Ranking-based selection keeps the chosen daily share; its precision and recall can still change across periods.
 
 ## B.2 Exploratory findings
 
@@ -167,39 +169,37 @@ XGBoost (raw, rule-selected) is ahead by +0.013 PR-AUC but the CI [-0.010, +0.04
 
 | model | calibration | ece_test | ece_test_m11 | ece_test_m12 | ece_equal_mass_test | brier_test | brier_test_m11 | brier_test_m12 |
 |---|---|---|---|---|---|---|---|---|
-| Prior (base rate) | none | 0.0066 | 0.0839 | 0.0706 | 0.0842 | 0.1916 | 0.1553 | 0.2279 |
+| Prior (base rate) | none | 0.0067 | 0.0840 | 0.0704 | 0.0842 | 0.1916 | 0.1553 | 0.2279 |
 | Route history | none (smoothed rate) | 0.0373 | 0.0352 | 0.0602 | 0.0380 | 0.1869 | 0.1492 | 0.2246 |
-| LogReg (raw) | raw | 0.0190 | 0.0553 | 0.0595 | 0.0216 | 0.1811 | 0.1454 | 0.2168 |
-| LogReg (Platt, static) | Platt (static, fit Sep-Oct) | 0.0815 | 0.0208 | 0.1421 | 0.0815 | 0.1872 | 0.1418 | 0.2326 |
-| LogReg (isotonic, static) | isotonic (static, fit Sep-Oct) | 0.0817 | 0.0226 | 0.1416 | 0.0802 | 0.1873 | 0.1419 | 0.2327 |
-| LogReg (rolling Platt 14d) | rolling Platt 14d (causal) | 0.0215 | 0.0110 | 0.0385 | 0.0230 | 0.1807 | 0.1431 | 0.2181 |
-| LogReg (rolling Platt 28d) | rolling Platt 28d (causal) | 0.0269 | 0.0065 | 0.0499 | 0.0265 | 0.1809 | 0.1419 | 0.2199 |
-| LogReg (rolling Platt 56d) | rolling Platt 56d (causal) | 0.0510 | 0.0135 | 0.0886 | 0.0510 | 0.1820 | 0.1416 | 0.2223 |
-| XGBoost (raw) | raw | 0.0267 | 0.0191 | 0.0642 | 0.0266 | 0.1797 | 0.1435 | 0.2158 |
-| XGBoost (Platt, static) | Platt (static, fit Sep-Oct) | 0.0812 | 0.0329 | 0.1309 | 0.0812 | 0.1864 | 0.1440 | 0.2286 |
-| XGBoost (isotonic, static) | isotonic (static, fit Sep-Oct) | 0.0787 | 0.0341 | 0.1258 | 0.0787 | 0.1859 | 0.1443 | 0.2274 |
-| XGBoost (rolling Platt 14d) | rolling Platt 14d (causal) | 0.0227 | 0.0125 | 0.0429 | 0.0231 | 0.1802 | 0.1440 | 0.2163 |
-| XGBoost (rolling Platt 28d) | rolling Platt 28d (causal) | 0.0241 | 0.0130 | 0.0382 | 0.0231 | 0.1803 | 0.1438 | 0.2168 |
-| XGBoost (rolling Platt 56d) | rolling Platt 56d (causal) | 0.0397 | 0.0220 | 0.0580 | 0.0397 | 0.1803 | 0.1433 | 0.2172 |
+| LogReg (raw) | raw | 0.0191 | 0.0557 | 0.0594 | 0.0218 | 0.1811 | 0.1455 | 0.2168 |
+| LogReg (Platt, static) | Platt (static, fit Sep-Oct) | 0.0824 | 0.0217 | 0.1432 | 0.0824 | 0.1874 | 0.1418 | 0.2329 |
+| LogReg (isotonic, static) | isotonic (static, fit Sep-Oct) | 0.0824 | 0.0234 | 0.1425 | 0.0810 | 0.1874 | 0.1419 | 0.2329 |
+| LogReg (rolling Platt 14d) | rolling Platt 14d (causal) | 0.0216 | 0.0110 | 0.0382 | 0.0230 | 0.1807 | 0.1431 | 0.2181 |
+| LogReg (rolling Platt 28d) | rolling Platt 28d (causal) | 0.0270 | 0.0061 | 0.0501 | 0.0266 | 0.1809 | 0.1419 | 0.2199 |
+| LogReg (rolling Platt 56d) | rolling Platt 56d (causal) | 0.0510 | 0.0135 | 0.0888 | 0.0510 | 0.1820 | 0.1416 | 0.2223 |
+| XGBoost (raw) | raw | 0.0272 | 0.0167 | 0.0608 | 0.0263 | 0.1798 | 0.1438 | 0.2158 |
+| XGBoost (Platt, static) | Platt (static, fit Sep-Oct) | 0.0729 | 0.0314 | 0.1168 | 0.0729 | 0.1847 | 0.1442 | 0.2252 |
+| XGBoost (isotonic, static) | isotonic (static, fit Sep-Oct) | 0.0708 | 0.0325 | 0.1126 | 0.0708 | 0.1845 | 0.1444 | 0.2246 |
+| XGBoost (rolling Platt 14d) | rolling Platt 14d (causal) | 0.0282 | 0.0128 | 0.0502 | 0.0267 | 0.1802 | 0.1443 | 0.2160 |
+| XGBoost (rolling Platt 28d) | rolling Platt 28d (causal) | 0.0261 | 0.0106 | 0.0422 | 0.0252 | 0.1806 | 0.1440 | 0.2172 |
+| XGBoost (rolling Platt 56d) | rolling Platt 56d (causal) | 0.0362 | 0.0215 | 0.0527 | 0.0359 | 0.1804 | 0.1436 | 0.2172 |
 
-* The static Platt/isotonic calibration (fit on calm Sep–Oct, 15.7% late) is right for November (LogReg Platt ECE 0.021) and badly wrong for December (0.142, base rate 33.5%): **the static rule fails in December**.
-* Raw scores are well calibrated overall (LogReg ECE 0.019) only because the training and test base rates are close: a coincidence of this split.
-* **Rolling Platt (N = 28, a priori):** LogReg ECE 0.027 (Nov 0.007, Dec 0.05), XGBoost 0.024. N = 14: 0.021; N = 56: 0.051 (LogReg; reported only).
+Static Platt has LogReg ECE 0.022 in November and 0.143 in December (December base rate 33.5%): **the static rule fails in December**. Raw LogReg has test ECE 0.019 overall, but its monthly errors are larger; a close overall mean prediction and base rate do not establish reliable probabilities in every month. Rolling Platt with the pre-specified 28-day window has test ECE 0.027 for LogReg (November 0.006, December 0.050) and 0.026 for XGBoost. LogReg sensitivity windows of 14 and 56 days give test ECE 0.022 and 0.051. These test diagnostics do not select a new final variant or prove a cause of the errors.
 
 ![monthly_drift_final](../figures/monthly_drift_final.png)
 
-### Ablation: test differences (confirmation only)
+### Ablation: exploratory test differences
 
 | model | calibration | step | test_diff | test_diff_ci_lo | test_diff_ci_hi |
 |---|---|---|---|---|---|
-| LogReg | raw | + congestion | 0.0072 | -0.0092 | 0.0275 |
-| LogReg | raw | + history_entity | 0.0324 | 0.0154 | 0.0493 |
-| LogReg | raw | + history_day | 0.0091 | -0.0091 | 0.0268 |
-| XGBoost | raw | + congestion | 0.0024 | -0.0101 | 0.0147 |
-| XGBoost | raw | + history_entity | 0.0520 | 0.0263 | 0.0772 |
-| XGBoost | raw | + history_day | 0.0096 | -0.0238 | 0.0454 |
+| LogReg | raw | + congestion | 0.0073 | -0.0093 | 0.0276 |
+| LogReg | raw | + history_entity | 0.0321 | 0.0152 | 0.0487 |
+| LogReg | raw | + history_day | 0.0095 | -0.0089 | 0.0272 |
+| XGBoost | raw | + congestion | -0.0025 | -0.0166 | 0.0128 |
+| XGBoost | raw | + history_entity | 0.0548 | 0.0301 | 0.0764 |
+| XGBoost | raw | + history_day | 0.0054 | -0.0290 | 0.0428 |
 
-LogReg: congestion +0.007 [-0.009, +0.027] (CI includes 0); entity history +0.032 [+0.015, +0.049] (CI excludes 0); day-level history +0.009 [-0.009, +0.027] (CI includes 0). XGBoost: congestion +0.002 [-0.010, +0.015] (CI includes 0); entity history +0.052 [+0.026, +0.077] (CI excludes 0); day-level history +0.010 [-0.024, +0.045] (CI includes 0).
+LogReg test AP differences are: congestion +0.0073 [−0.0093, +0.0276], entity history +0.0321 [+0.0152, +0.0487], and day-level history +0.0095 [−0.0089, +0.0272]. XGBoost differences are −0.0025 [−0.0166, +0.0128], +0.0548 [+0.0301, +0.0764], and +0.0054 [−0.0290, +0.0428], respectively. Only the entity-history intervals exclude zero in these exploratory comparisons. These results do not establish causal contributions.
 
 ### Target sensitivity (cancelled and diverted = delayed)
 
@@ -207,14 +207,14 @@ LogReg: congestion +0.007 [-0.009, +0.027] (CI includes 0); entity history +0.03
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | arr_delay>=15 (main) | Prior (base rate) | none | 53991 | 0.258 | 0.258 | 0.500 | 0.192 | 0.007 | 0.243 | 0.095 | 0.941 | – |
 | arr_delay>=15 (main) | Route history | none (smoothed rate) | 53991 | 0.258 | 0.353 | 0.621 | 0.187 | 0.037 | 0.358 | 0.139 | 1.387 | – |
-| arr_delay>=15 (main) | LogReg (raw) | raw | 53991 | 0.258 | 0.394 | 0.654 | 0.181 | 0.019 | 0.444 | 0.173 | 1.720 | [-0.010, +0.041] |
-| arr_delay>=15 (main) | XGBoost (raw) | raw | 53991 | 0.258 | 0.407 | 0.662 | 0.180 | 0.027 | 0.435 | 0.169 | 1.683 | [-0.010, +0.041] |
-| arr_delay>=15 OR cancelled/diverted | Prior (base rate) | none | 55403 | 0.277 | 0.277 | 0.500 | 0.200 | 0.012 | 0.262 | 0.095 | 0.946 | – |
+| arr_delay>=15 (main) | LogReg (raw) | raw | 53991 | 0.258 | 0.394 | 0.654 | 0.181 | 0.019 | 0.445 | 0.173 | 1.722 | [-0.013, +0.037] |
+| arr_delay>=15 (main) | XGBoost (raw) | raw | 53991 | 0.258 | 0.404 | 0.662 | 0.180 | 0.027 | 0.431 | 0.168 | 1.667 | [-0.013, +0.037] |
+| arr_delay>=15 OR cancelled/diverted | Prior (base rate) | none | 55403 | 0.277 | 0.277 | 0.500 | 0.200 | 0.011 | 0.262 | 0.095 | 0.946 | – |
 | arr_delay>=15 OR cancelled/diverted | Route history | none (smoothed rate) | 55403 | 0.277 | 0.374 | 0.621 | 0.196 | 0.047 | 0.377 | 0.137 | 1.359 | – |
-| arr_delay>=15 OR cancelled/diverted | LogReg (raw) | raw | 55403 | 0.277 | 0.446 | 0.661 | 0.186 | 0.024 | 0.478 | 0.173 | 1.726 | [-0.013, +0.037] |
-| arr_delay>=15 OR cancelled/diverted | XGBoost (raw) | raw | 55403 | 0.277 | 0.455 | 0.669 | 0.185 | 0.029 | 0.475 | 0.172 | 1.715 | [-0.013, +0.037] |
+| arr_delay>=15 OR cancelled/diverted | LogReg (raw) | raw | 55403 | 0.277 | 0.446 | 0.661 | 0.186 | 0.024 | 0.479 | 0.174 | 1.729 | [-0.013, +0.037] |
+| arr_delay>=15 OR cancelled/diverted | XGBoost (raw) | raw | 55403 | 0.277 | 0.455 | 0.672 | 0.185 | 0.029 | 0.474 | 0.172 | 1.708 | [-0.013, +0.037] |
 
-The base rate rises from 25.8% to 27.7%; conclusions hold: XGBoost vs LogReg CI [-0.013, +0.037] (includes 0), policy lift LogReg 1.73 / XGBoost 1.71 / prior 0.95; both learned models still beat both references.
+Counting cancellation/diversion proxies as delayed raises the test base rate from 25.8% to 27.7%. In that sensitivity run, raw LogReg AP is 0.446 and raw XGBoost AP is 0.455; both exceed the reference scores. Their test AP-difference interval is [−0.013, +0.037], which does not establish a difference or equivalence. Top-10% lifts are 1.73 for LogReg, 1.71 for XGBoost, and 0.95 for the prior. This is one alternative target check, not proof that findings are independent of all missing-outcome definitions.
 
 ### Covariate shift: PSI and adversarial validation
 
@@ -246,7 +246,9 @@ The base rate rises from 25.8% to 27.7%; conclusions hold: XGBoost vs LogReg CI 
 | train vs test | history_entity | 18 | 0.998 |
 | train vs test | history_day | 7 | 1.000 |
 
-PSI: the largest shifts into Sep–Oct are hist_rate_network_7d, hist_rate_origin_7d, hist_rate_carrier_14d (history rates follow the season by design), and into Nov–Dec days_to_holiday, hist_logn_origin_7d, hist_rate_network_7d; `days_to_holiday` is the largest (PSI 4.8) because Thanksgiving, Christmas and New Year all fall in the test window. Adversarial AUC: **categorical** 0.56 (vs calib) / 0.56 (vs test); **schedule** 0.78 (vs calib) / 0.92 (vs test); **congestion** 0.98 (vs calib) / 0.96 (vs test); **history_entity** 1.00 (vs calib) / 1.00 (vs test); **history_day** 1.00 (vs calib) / 1.00 (vs test). The IDs (carrier, origin, destination) are nearly stable; schedule and congestion shift through season and holiday proximity; history separates the periods completely by design.
+PSI: the largest shifts into Sep–Oct are hist_rate_network_7d, hist_rate_origin_7d, hist_rate_carrier_14d (history rates follow the season by design), and into Nov–Dec days_to_holiday, hist_logn_origin_7d, hist_rate_network_7d; `days_to_holiday` is the largest (PSI 4.8) because Thanksgiving, Christmas and New Year all fall in the test window. Adversarial AUC: **categorical** 0.56 (vs calib) / 0.56 (vs test); **schedule** 0.78 (vs calib) / 0.92 (vs test); **congestion** 0.98 (vs calib) / 0.96 (vs test); **history_entity** 1.00 (vs calib) / 1.00 (vs test); **history_day** 1.00 (vs calib) / 1.00 (vs test). The IDs (carrier, origin, destination) are nearly stable; schedule and congestion shift through season and holiday proximity; history gives high row-level period separability in this diagnostic.
+
+PSI describes marginal feature-distribution changes; the row-split adversarial classifier describes separability of sampled rows from different periods. Daily feature values are repeated across flights, so near-perfect separability should not be interpreted as verified generalisation to unseen days. The diagnostics are consistent with distribution change, but do not establish that it caused the calibration errors or that the delay models memorised dates. The underlying diagnostic implementation is unchanged.
 
 ![psi_top15](../figures/psi_top15.png)
 
@@ -267,14 +269,14 @@ Each test day the final model's ranking selects the top-k% flights as candidates
 | Route history | 10% | 89 | 0.358 | 0.139 | 1.39 | 35.8 |
 | Route history | 15% | 133 | 0.346 | 0.201 | 1.34 | 34.6 |
 | Route history | 20% | 177 | 0.339 | 0.263 | 1.31 | 33.9 |
-| LogReg (Platt, rule-selected) | 5% | 45 | 0.469 | 0.092 | 1.82 | 46.9 |
-| LogReg (Platt, rule-selected) | 10% | 89 | 0.444 | 0.173 | 1.72 | 44.4 |
-| LogReg (Platt, rule-selected) | 15% | 133 | 0.423 | 0.246 | 1.64 | 42.3 |
+| LogReg (Platt, rule-selected) | 5% | 45 | 0.470 | 0.092 | 1.82 | 47.0 |
+| LogReg (Platt, rule-selected) | 10% | 89 | 0.445 | 0.173 | 1.72 | 44.5 |
+| LogReg (Platt, rule-selected) | 15% | 133 | 0.422 | 0.246 | 1.64 | 42.2 |
 | LogReg (Platt, rule-selected) | 20% | 177 | 0.406 | 0.315 | 1.57 | 40.6 |
-| XGBoost (raw, rule-selected) | 5% | 45 | 0.464 | 0.091 | 1.80 | 46.4 |
-| XGBoost (raw, rule-selected) | 10% | 89 | 0.435 | 0.169 | 1.68 | 43.5 |
-| XGBoost (raw, rule-selected) | 15% | 133 | 0.416 | 0.242 | 1.61 | 41.6 |
-| XGBoost (raw, rule-selected) | 20% | 177 | 0.400 | 0.310 | 1.55 | 40.0 |
+| XGBoost (raw, rule-selected) | 5% | 45 | 0.466 | 0.091 | 1.80 | 46.6 |
+| XGBoost (raw, rule-selected) | 10% | 89 | 0.431 | 0.168 | 1.67 | 43.1 |
+| XGBoost (raw, rule-selected) | 15% | 133 | 0.413 | 0.240 | 1.60 | 41.3 |
+| XGBoost (raw, rule-selected) | 20% | 177 | 0.399 | 0.310 | 1.55 | 39.9 |
 
 * **This shows ranking quality, not realised operational savings.** The data contain no cost, aircraft-rotation or schedule-change model, so the benefit of moving or buffering a flight cannot be estimated.
 * The brief's exact definition of rescheduling was not supplied; anything beyond this ranking analysis (cost model, feasibility, intervention effect) is missing, not invented.
