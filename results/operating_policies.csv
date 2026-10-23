@@ -7,11 +7,11 @@ route_history,none (smoothed rate),Route history,calib,primary,daily top 10%,0.1
 route_history,none (smoothed rate),Route history,calib,secondary,frozen thr for P>=0.4 (from Sep-Oct),0.0008628748112461351,0.4166666666666667,0.0022906883518497307,2.654716909097851,0.46890697626659184
 route_history,none (smoothed rate),Route history,test,primary,daily top 10%,0.10053527439758478,0.35814296241709653,0.1393948085472537,1.386526364825861,
 route_history,none (smoothed rate),Route history,test,secondary,frozen thr for P>=0.4 (from Sep-Oct),0.05882461891796781,0.4250629722921914,0.09680195038003729,1.6456026772571135,0.46890697626659184
-logreg_rule_selected,Platt (rule-selected),"LogReg (Platt, rule-selected)",calib,primary,daily top 10%,0.10047098583447185,0.3032742887815352,0.1941358378192647,1.9322577180551184,
-logreg_rule_selected,Platt (rule-selected),"LogReg (Platt, rule-selected)",calib,secondary,frozen thr for P>=0.4 (from Sep-Oct),0.0382001869562091,0.4,0.09735425495361356,2.5485282327339367,0.3312401987503297
-logreg_rule_selected,Platt (rule-selected),"LogReg (Platt, rule-selected)",test,primary,daily top 10%,0.10053527439758478,0.4443625644804716,0.17295281801233328,1.7203197489506052,
-logreg_rule_selected,Platt (rule-selected),"LogReg (Platt, rule-selected)",test,secondary,frozen thr for P>=0.4 (from Sep-Oct),0.07466059158007816,0.49342594889605557,0.14262154022658827,1.9102653382222095,0.3312401987503297
-xgboost_rule_selected,raw (rule-selected),"XGBoost (raw, rule-selected)",calib,primary,daily top 10%,0.10047098583447185,0.29414922168545354,0.18829458252204787,1.8741189902552298,
-xgboost_rule_selected,raw (rule-selected),"XGBoost (raw, rule-selected)",calib,secondary,frozen thr for P>=0.4 (from Sep-Oct),0.014596965556913784,0.4002463054187192,0.03722368571755812,2.5500975235176395,0.44610536098480225
-xgboost_rule_selected,raw (rule-selected),"XGBoost (raw, rule-selected)",test,primary,daily top 10%,0.10053527439758478,0.4345983787767133,0.16915244514556146,1.6825183614322048,
-xgboost_rule_selected,raw (rule-selected),"XGBoost (raw, rule-selected)",test,secondary,frozen thr for P>=0.4 (from Sep-Oct),0.06191772702857884,0.5213879748728687,0.12498207371289259,2.018518439076513,0.44610536098480225
+logreg_rule_selected,Platt (rule-selected),"LogReg (Platt, rule-selected)",calib,primary,daily top 10%,0.10047098583447185,0.30309536589729824,0.1940213034016722,1.9311177430002184,
+logreg_rule_selected,Platt (rule-selected),"LogReg (Platt, rule-selected)",calib,secondary,frozen thr for P>=0.4 (from Sep-Oct),0.03775077299201841,0.4004761904761905,0.09632344519528119,2.5515621949157627,0.33008719597416614
+logreg_rule_selected,Platt (rule-selected),"LogReg (Platt, rule-selected)",test,primary,daily top 10%,0.10053527439758478,0.4447310243183493,0.1730962283091926,1.72174621640413,
+logreg_rule_selected,Platt (rule-selected),"LogReg (Platt, rule-selected)",test,secondary,frozen thr for P>=0.4 (from Sep-Oct),0.07382711933470393,0.49523331660812847,0.1415459630001434,1.9172624406273815,0.33008719597416614
+xgboost_rule_selected,raw (rule-selected),"XGBoost (raw, rule-selected)",calib,primary,daily top 10%,0.10047098583447185,0.2989801395598497,0.191387011797045,1.9048983167375237,
+xgboost_rule_selected,raw (rule-selected),"XGBoost (raw, rule-selected)",calib,secondary,frozen thr for P>=0.4 (from Sep-Oct),0.02308190120083411,0.40109034267912774,0.05898522506013057,2.5554751554867163,0.4167290925979614
+xgboost_rule_selected,raw (rule-selected),"XGBoost (raw, rule-selected)",test,primary,daily top 10%,0.10053527439758478,0.43054532056005895,0.167574931880109,1.6668272194434348,
+xgboost_rule_selected,raw (rule-selected),"XGBoost (raw, rule-selected)",test,secondary,frozen thr for P>=0.4 (from Sep-Oct),0.08845918764238485,0.4886934673366834,0.16735981643482,1.891943854508452,0.4167290925979614
