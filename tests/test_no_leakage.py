@@ -76,7 +76,9 @@ def test_splits_are_chronological_and_disjoint(raw):
 
 def test_rolling_folds_never_train_on_or_after_val_month():
     months = np.repeat(np.arange(1, 9), 10)
-    for tr, va in models.rolling_folds(months):
+    dates = pd.to_datetime([f"2013-{m:02d}-01" for m in months]).to_numpy()
+    avail = dates + np.timedelta64(1, "D")
+    for tr, va in models.rolling_folds(months, dates=dates, avail_dates=avail):
         assert months[tr].max() < months[va].min()
 
 
