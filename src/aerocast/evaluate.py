@@ -13,7 +13,7 @@ from sklearn.metrics import (
     roc_auc_score,
 )
 
-from . import config
+from . import config, data
 
 
 # ---------------------------------------------------------------------------
@@ -89,16 +89,26 @@ CALIBRATORS = {"raw": IdentityCalibrator, "platt": PlattCalibrator, "isotonic": 
 
 
 def select_calibrator(p, y, months, fit_month: int, check_month: int,
-                      min_gain: float = config.CALIB_MIN_ECE_GAIN) -> tuple[str, pd.DataFrame]:
+                      min_gain: float = config.CALIB_MIN_ECE_GAIN, *,
+                      dates, avail_dates, selection_date) -> tuple[str, pd.DataFrame]:
     """A-priori recalibration rule (no test data involved).
 
     Fit Platt and isotonic on ``fit_month``, score ECE on the later
     ``check_month`` (a mini forward test). Keep the raw scores unless the best
     recalibrator lowers ECE by more than ``min_gain``: a recalibrator must
-    earn its place, a near-tie defaults to "do nothing".
+    earn its place, a near-tie defaults to "do nothing". Fit labels must be
+    known at the first check day's clock; check labels must be known at the
+    selection clock before test begins.
     """
     p, y, months = map(np.asarray, (p, y, months))
     fit, chk = months == fit_month, months == check_month
+    dates = pd.to_datetime(pd.Series(dates)).to_numpy()
+    if not chk.any():
+        raise ValueError("No calibration-check rows")
+    fit &= data.outcomes_available_by(avail_dates, dates[chk].min())
+    chk &= data.outcomes_available_by(avail_dates, selection_date)
+    if not fit.any() or not chk.any():
+        raise ValueError("No available calibration fit or check labels")
     rows = []
     for name, cls in CALIBRATORS.items():
         q = cls().fit(p[fit], y[fit]).predict(p[chk])
