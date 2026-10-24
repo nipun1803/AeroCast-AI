@@ -62,7 +62,7 @@ python -B -m nbconvert --to notebook --execute --inplace \
   notebooks/03_model_training.ipynb notebooks/04_evaluation.ipynb
 ```
 
-The verified run passed **36 tests**, completed the pipeline in about **22 minutes** on a MacBook Pro, and executed all four notebooks successfully. Runtime varies by machine; history tuning can run for several minutes between progress messages. Notebooks 03 and 04 check their computed tables against the pipeline's saved outputs.
+The full run on **2026-10-23** passed **36 tests**, completed the pipeline in about **22 minutes** on a MacBook Pro, and executed all four notebooks successfully. After the equal-mass ECE correction on **2026-10-24**, the expanded suite passes **42 tests**. Runtime varies by machine; history tuning can run for several minutes between progress messages. Notebooks 03 and 04 check their computed tables against the pipeline's saved outputs.
 
 Rerunning overwrites generated files in `results/` and `figures/`, and notebook outputs. These commands leave report assets unchanged. `scripts/reproduce.sh` additionally deletes generated outputs and report assets, exports report tables/figures, checks report numbers and attempts a PDF build.
 
@@ -76,7 +76,7 @@ PR-AUC is average precision (AP). Values below are rounded from [results/headlin
 
 | model | calibration | pr_auc | roc_auc | brier | ece | ece_equal_mass | oracle_recall@p0.40 |
 |---|---|---|---|---|---|---|---|
-| Prior (base rate) | none | 0.258 | 0.500 | 0.192 | 0.007 | 0.084 | 0.000 |
+| Prior (base rate) | none | 0.258 | 0.500 | 0.192 | 0.007 | 0.007 | 0.000 |
 | Route history | none (smoothed rate) | 0.353 | 0.621 | 0.187 | 0.037 | 0.038 | 0.244 |
 | LogReg (raw) | raw | 0.394 | 0.654 | 0.181 | 0.019 | 0.022 | 0.431 |
 | LogReg (Platt, rule-selected) | Platt (rule-selected) | 0.394 | 0.654 | 0.187 | 0.082 | 0.082 | 0.431 |
@@ -88,7 +88,7 @@ PR-AUC is average precision (AP). Values below are rounded from [results/headlin
 * **Primary policy (daily top 10%, `LogReg (Platt, rule-selected)`):** precision 0.445, recall 0.173, lift 1.72× (prior: 0.94×).
 * **Secondary policy:** the LogReg threshold frozen on eligible September–October labels to target precision ≥ 0.40 is 0.330; on test it achieves precision 0.495 and recall 0.142. Test precision is an observed result, not a guarantee for future flights.
 * `oracle_recall@p` tunes the threshold on the evaluated labels: a model-comparison metric, not an operating result.
-* `ece` uses fixed-width bins. The current equal-mass ECE implementation is sensitive to row order when predictions tie, especially for the constant prior. Treat that column as a diagnostic with this limitation; use fixed-width ECE and Brier for the main calibration discussion.
+* `ece` uses 15 fixed-width bins. `ece_equal_mass` starts with 15 balanced rank bins, moves boundaries to keep identical probabilities together, and collapses duplicate boundaries. Bins can therefore have unequal counts or number fewer than 15; constant predictions use one bin. Use fixed-width ECE and Brier for the main calibration discussion; low ECE alone does not imply ranking skill.
 
 ## Documentation
 
