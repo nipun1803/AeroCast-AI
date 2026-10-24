@@ -22,6 +22,8 @@ Needs `IEEEtran`, `cite`, `booktabs`, `graphicx`, `amsmath`, `enumitem`, `hyperr
 
 Prose numbers are typed by hand. From the repository root, `python -B scripts/check_report_numbers.py` checks selected numeric strings against `results/`. The current report passed 40/40 checks. These cover selected headline, policy, CV, calibration, bootstrap and candidate-ranking values; they do not validate every number or its surrounding interpretation. Notebook outputs and supporting prose must also agree with the saved run.
 
+Equal-mass ECE preserves identical probabilities in the same bin; ties can produce fewer bins or unequal counts. The corrected prior test value is 0.007 when rounded to three decimals. Its low calibration error does not imply flight-specific ranking skill. See the metric definition in `main.tex` and [evaluation notes](../docs/04_evaluation.md).
+
 ## Reference and manuscript status
 
 * `yu2019`: authors, venue, volume, pages and DOI were verified against Crossref on 2026-10-23, as recorded in `references.bib`. Bibliographic verification does not mean that the paper's full method was assessed.
