@@ -37,6 +37,8 @@ python -B -m nbconvert --to notebook --execute --inplace \
 
 The verified MacBook Pro run on **2026-10-23** passed **36 tests**, completed the pipeline in about **22 minutes**, and executed all four notebooks successfully. Notebook execution time varies; the former 13-minute total estimate described an older experiment and is not a current benchmark.
 
+The equal-mass ECE correction on **2026-10-24** passed the expanded **42-test** suite. Evaluation was recomputed from unchanged saved predictions, notebook 04 was executed again, and affected result/report tables and the PDF were refreshed. No flight-classifier training was rerun; model choices, other metrics, policies and figures remain unchanged. Tied-probability checks cover synthetic label orderings and 50 permutations of five real saved-score variants.
+
 The pipeline overwrites generated `results/` and `figures/`; notebook execution updates stored outputs. For updated report assets, run:
 
 ```bash
