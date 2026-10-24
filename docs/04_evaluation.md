@@ -7,7 +7,7 @@ Evidence is kept apart: **Part A** is what any decision rests on (CV / Sep–Oct
 ## Metric theory (notebook §1)
 
 * **PR-AUC = average precision** (step-wise Σ (R_k − R_{k−1}) P_k, not the trapezoid); baseline = base rate. ROC-AUC ignores the base rate; PR matches what an ops desk sees under imbalance.
-* **ECE** = Σ_b |B_b|/n · |ȳ_b − p̄_b|: a *biased* estimator (noise adds, grows with bins) and binning-dependent, so both **equal-width** (15 bins) and **equal-mass** ECE are reported next to the Brier score. It is a marginal check: the *prior* has a small ECE when the test base rate is near the training one (0.007 here), which says nothing about skill.
+* **ECE** = Σ_b |B_b|/n · |ȳ_b − p̄_b|: a *biased* estimator (noise adds, grows with bins) and binning-dependent, so both **equal-width** (15 bins) and **approximately equal-mass** ECE are reported next to the Brier score. Equal-mass ECE starts with 15 balanced rank bins, moves each boundary to the end of its tied-probability group, and collapses duplicate boundaries. Identical probabilities stay together regardless of row order; ties can produce fewer bins or unequal counts. Constant predictions use one bin. It is a marginal check: the *prior* has a small ECE when the test base rate is near the training one (0.007 here), which says nothing about skill.
 * **Platt / temperature scaling vs isotonic:** Platt = σ(a·logit p + b), 2 parameters, smooth; temperature scaling is its 1-parameter case; isotonic is a monotone step function (flexible, data-hungry). All assume calibration data resemble deployment data.
 * **`oracle_recall@p`:** best recall at precision ≥ p with the threshold tuned **on the evaluated labels**. A point on the PR curve for **comparing models only**, never an operating result.
 * **Day-block bootstrap:** whole days are resampled (flights within a day are correlated); model differences are paired on the same days.
@@ -40,7 +40,7 @@ Rule (fixed before test): fit Platt and isotonic on **September**, check ECE on 
 |---|---|---|---|---|---|
 | logreg | raw | 0.0625 | 0.0628 | 0.1398 | 0.0000 |
 | logreg | platt | 0.0329 | 0.0329 | 0.1368 | 0.0296 |
-| logreg | isotonic | 0.0342 | 0.0355 | 0.1376 | 0.0283 |
+| logreg | isotonic | 0.0342 | 0.0340 | 0.1376 | 0.0283 |
 | xgboost | raw | 0.0199 | 0.0224 | 0.1372 | 0.0000 |
 | xgboost | platt | 0.0422 | 0.0422 | 0.1393 | -0.0223 |
 | xgboost | isotonic | 0.0421 | 0.0421 | 0.1396 | -0.0223 |
@@ -101,7 +101,7 @@ Test = Nov–Dec 2013. The current rules use the development evidence described 
 
 | model | calibration | pr_auc | roc_auc | brier | ece | ece_equal_mass | oracle_recall@p0.40 |
 |---|---|---|---|---|---|---|---|
-| Prior (base rate) | none | 0.258 | 0.500 | 0.192 | 0.007 | 0.084 | 0.000 |
+| Prior (base rate) | none | 0.258 | 0.500 | 0.192 | 0.007 | 0.007 | 0.000 |
 | Route history | none (smoothed rate) | 0.353 | 0.621 | 0.187 | 0.037 | 0.038 | 0.244 |
 | LogReg (raw) | raw | 0.394 | 0.654 | 0.181 | 0.019 | 0.022 | 0.431 |
 | LogReg (Platt, rule-selected) | Platt (rule-selected) | 0.394 | 0.654 | 0.187 | 0.082 | 0.082 | 0.431 |
@@ -109,7 +109,7 @@ Test = Nov–Dec 2013. The current rules use the development evidence described 
 | XGBoost (raw, rule-selected) | raw (rule-selected) | 0.404 | 0.662 | 0.180 | 0.027 | 0.026 | 0.462 |
 | XGBoost (rolling Platt 28d) | rolling Platt 28d (causal) | 0.394 | 0.659 | 0.181 | 0.026 | 0.025 | 0.417 |
 
-`LogReg (Platt, rule-selected)` is the model as the pre-declared rule deploys it. Its ranking equals `LogReg (raw)` (Platt is monotone), but its calibration does not: **test ECE 0.082 (Platt, rule-selected) vs 0.019 (raw) vs 0.027 (rolling Platt 28d)**. **The static rule fails in December** (below). Both learned models beat both references on PR-AUC (0.394 LogReg, 0.404 XGBoost, 0.353 route history, 0.258 prior); the prior's low ECE (0.007; equal-mass 0.084) is not skill. `oracle_recall@p0.40` is a comparison metric only.
+`LogReg (Platt, rule-selected)` is the model as the pre-declared rule deploys it. Its ranking equals `LogReg (raw)` (Platt is monotone), but its calibration does not: **test ECE 0.082 (Platt, rule-selected) vs 0.019 (raw) vs 0.027 (rolling Platt 28d)**. **The static rule fails in December** (below). Both learned models beat both references on PR-AUC (0.394 LogReg, 0.404 XGBoost, 0.353 route history, 0.258 prior); the prior's low fixed-width and equal-mass ECE (both 0.007) reflects close overall means, not ranking skill. `oracle_recall@p0.40` is a comparison metric only.
 
 ### November and December
 
@@ -169,7 +169,7 @@ XGBoost's test AP is higher by 0.0105, but the paired 95% interval [−0.013, +0
 
 | model | calibration | ece_test | ece_test_m11 | ece_test_m12 | ece_equal_mass_test | brier_test | brier_test_m11 | brier_test_m12 |
 |---|---|---|---|---|---|---|---|---|
-| Prior (base rate) | none | 0.0067 | 0.0840 | 0.0704 | 0.0842 | 0.1916 | 0.1553 | 0.2279 |
+| Prior (base rate) | none | 0.0067 | 0.0840 | 0.0704 | 0.0067 | 0.1916 | 0.1553 | 0.2279 |
 | Route history | none (smoothed rate) | 0.0373 | 0.0352 | 0.0602 | 0.0380 | 0.1869 | 0.1492 | 0.2246 |
 | LogReg (raw) | raw | 0.0191 | 0.0557 | 0.0594 | 0.0218 | 0.1811 | 0.1455 | 0.2168 |
 | LogReg (Platt, static) | Platt (static, fit Sep-Oct) | 0.0824 | 0.0217 | 0.1432 | 0.0824 | 0.1874 | 0.1418 | 0.2329 |
