@@ -32,16 +32,27 @@ def expected_calibration_error(y, p, n_bins: int = config.N_CALIBRATION_BINS) ->
 
 
 def expected_calibration_error_equal_mass(y, p, n_bins: int = config.N_CALIBRATION_BINS) -> float:
-    """Equal-mass ECE: bins are score quantiles, so every bin holds ~N/n_bins
-    flights. Equal-width bins leave the sparse high-risk tail with few
-    samples (noisy) and lump most mass into a few bins; equal-mass binning
-    trades that for bins whose edges move with the score distribution."""
+    """Approximately equal-mass ECE, with tied probabilities kept together.
+
+    Start with balanced rank cuts, then move each cut to the end of its
+    tied-score group. Duplicate cuts collapse, so ties can produce fewer
+    bins or unequal bin sizes. A constant prediction therefore uses one
+    bin, independent of row order. Unique scores retain the balanced bins.
+    """
     y, p = np.asarray(y), np.asarray(p)
     order = np.argsort(p, kind="stable")
+    chunks = np.array_split(order, n_bins)
+    if not len(p):
+        return 0.0
+    cuts = np.cumsum([len(chunk) for chunk in chunks])[:-1]
+    cuts = cuts[(cuts > 0) & (cuts < len(p))]
+    sorted_p = p[order]
+    ends = np.unique(np.r_[np.searchsorted(sorted_p, sorted_p[cuts - 1], side="right"),
+                           len(p)])
     ece = 0.0
-    for chunk in np.array_split(order, n_bins):
-        if len(chunk):
-            ece += len(chunk) / len(p) * abs(y[chunk].mean() - p[chunk].mean())
+    for start, end in zip(np.r_[0, ends[:-1]], ends):
+        chunk = order[start:end]
+        ece += len(chunk) / len(p) * abs(y[chunk].mean() - p[chunk].mean())
     return float(ece)
 
 
