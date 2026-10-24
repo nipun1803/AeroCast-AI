@@ -27,6 +27,38 @@ def test_ece_detects_miscalibration(calibrated):
     assert evaluate.expected_calibration_error(y, p * 0.5) > 0.2   # systematic under-prediction
 
 
+@pytest.mark.parametrize("n_bins", [1, 10, 15, 200])
+def test_equal_mass_ece_constant_scores_ignore_label_order(n_bins):
+    """Identical probabilities form one bin, even when labels are grouped."""
+    p = np.full(100, 0.5)
+    grouped = np.r_[np.zeros(50), np.ones(50)]
+    alternating = np.tile([0, 1], 50)
+    assert evaluate.expected_calibration_error_equal_mass(grouped, p, n_bins) == pytest.approx(0)
+    assert evaluate.expected_calibration_error_equal_mass(alternating, p, n_bins) == pytest.approx(0)
+    assert evaluate.expected_calibration_error_equal_mass(grouped, p + 0.2, n_bins) == pytest.approx(0.2)
+
+
+def test_equal_mass_ece_tied_groups_is_permutation_invariant():
+    """Preserve score groups rather than cancelling their opposite errors."""
+    p = np.repeat([0.1, 0.5, 0.9], [60, 30, 10])
+    y = np.r_[np.ones(12), np.zeros(48), np.ones(15), np.zeros(15),
+              np.ones(6), np.zeros(4)]
+    # Score-group errors: 60% * |0.2-0.1| + 30% * 0 + 10% * |0.6-0.9|.
+    expected = 0.09
+    rng = np.random.default_rng(42)
+    for _ in range(20):
+        order = rng.permutation(len(p))
+        assert evaluate.expected_calibration_error_equal_mass(y[order], p[order], 10) == pytest.approx(expected)
+
+
+def test_equal_mass_ece_unique_scores_preserve_balanced_bins():
+    p = np.linspace(0.01, 0.99, 37)
+    y = (np.arange(len(p)) % 3 == 0).astype(int)
+    bins = np.array_split(np.argsort(p), 15)
+    expected = sum(len(b) / len(p) * abs(y[b].mean() - p[b].mean()) for b in bins)
+    assert evaluate.expected_calibration_error_equal_mass(y, p) == pytest.approx(expected)
+
+
 def test_threshold_for_precision_reaches_target():
     y = np.array([0, 0, 1, 0, 1, 1, 1, 1])
     p = np.linspace(0.1, 0.8, 8)
