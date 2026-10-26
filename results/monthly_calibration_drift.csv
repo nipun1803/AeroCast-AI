@@ -1,40 +1,40 @@
 variant,calibration,month,observed,predicted,model
-logreg_raw,raw,1,0.23836895111766152,0.20716108209051473,LogReg (raw)
-logreg_raw,raw,2,0.23781288382533564,0.25432196729402534,LogReg (raw)
-logreg_raw,raw,3,0.23604042720951904,0.25270219287531953,LogReg (raw)
-logreg_raw,raw,4,0.28751269772166593,0.26179612903440347,LogReg (raw)
-logreg_raw,raw,5,0.22667804323094426,0.26505929682499463,LogReg (raw)
-logreg_raw,raw,6,0.3152354570637119,0.2766348804885448,LogReg (raw)
-logreg_raw,raw,7,0.3220584596896759,0.30797380936644425,LogReg (raw)
-logreg_raw,raw,8,0.2459660592571985,0.2761667524613741,LogReg (raw)
-logreg_raw,raw,9,0.1371714179933358,0.22724809060018758,LogReg (raw)
-logreg_raw,raw,10,0.17562373331469705,0.23329160086839526,LogReg (raw)
-logreg_raw,raw,11,0.18100923213822254,0.23535678243285782,LogReg (raw)
-logreg_raw,raw,12,0.3354552183567728,0.28130238734922436,LogReg (raw)
-xgboost_raw,raw,1,0.23836895111766152,0.2360719186225707,XGBoost (raw)
-xgboost_raw,raw,2,0.23781288382533564,0.25858349264908825,XGBoost (raw)
-xgboost_raw,raw,3,0.23604042720951904,0.25021006359007314,XGBoost (raw)
-xgboost_raw,raw,4,0.28751269772166593,0.2678950920609395,XGBoost (raw)
-xgboost_raw,raw,5,0.22667804323094426,0.23453404721813234,XGBoost (raw)
-xgboost_raw,raw,6,0.3152354570637119,0.2860788887922178,XGBoost (raw)
-xgboost_raw,raw,7,0.3220584596896759,0.32249149909714425,XGBoost (raw)
-xgboost_raw,raw,8,0.2459660592571985,0.25555285702662,XGBoost (raw)
-xgboost_raw,raw,9,0.1371714179933358,0.19907420189759492,XGBoost (raw)
-xgboost_raw,raw,10,0.17562373331469705,0.19131175336394857,XGBoost (raw)
-xgboost_raw,raw,11,0.18100923213822254,0.18954840627344263,XGBoost (raw)
-xgboost_raw,raw,12,0.3354552183567728,0.2746807441975698,XGBoost (raw)
-logreg_platt,"Platt (static, fit Sep-Oct)",1,0.23836895111766152,0.14108861173700893,"LogReg (Platt, static)"
-logreg_platt,"Platt (static, fit Sep-Oct)",2,0.23781288382533564,0.17312043793073328,"LogReg (Platt, static)"
-logreg_platt,"Platt (static, fit Sep-Oct)",3,0.23604042720951904,0.1720005630314443,"LogReg (Platt, static)"
-logreg_platt,"Platt (static, fit Sep-Oct)",4,0.28751269772166593,0.17805707941829707,"LogReg (Platt, static)"
-logreg_platt,"Platt (static, fit Sep-Oct)",5,0.22667804323094426,0.1810913360163715,"LogReg (Platt, static)"
-logreg_platt,"Platt (static, fit Sep-Oct)",6,0.3152354570637119,0.18917950113428111,"LogReg (Platt, static)"
-logreg_platt,"Platt (static, fit Sep-Oct)",7,0.3220584596896759,0.21351587011641915,"LogReg (Platt, static)"
-logreg_platt,"Platt (static, fit Sep-Oct)",8,0.2459660592571985,0.18843154326242756,"LogReg (Platt, static)"
-logreg_platt,"Platt (static, fit Sep-Oct)",9,0.1371714179933358,0.15420720226011733,"LogReg (Platt, static)"
-logreg_platt,"Platt (static, fit Sep-Oct)",10,0.17562373331469705,0.15822448451056725,"LogReg (Platt, static)"
-logreg_platt,"Platt (static, fit Sep-Oct)",11,0.18100923213822254,0.1595993757790251,"LogReg (Platt, static)"
-logreg_platt,"Platt (static, fit Sep-Oct)",12,0.3354552183567728,0.1922582109751627,"LogReg (Platt, static)"
+logreg_raw,raw,1,0.23836895111766152,0.2070370142003887,LogReg (raw)
+logreg_raw,raw,2,0.23781288382533564,0.25426681939241425,LogReg (raw)
+logreg_raw,raw,3,0.23604042720951904,0.25284836014865786,LogReg (raw)
+logreg_raw,raw,4,0.28751269772166593,0.2619205150266323,LogReg (raw)
+logreg_raw,raw,5,0.22667804323094426,0.26508550311997425,LogReg (raw)
+logreg_raw,raw,6,0.3152354570637119,0.2765832473166878,LogReg (raw)
+logreg_raw,raw,7,0.3220584596896759,0.3078491423190955,LogReg (raw)
+logreg_raw,raw,8,0.2459660592571985,0.276206098633008,LogReg (raw)
+logreg_raw,raw,9,0.1371714179933358,0.2273463591318979,LogReg (raw)
+logreg_raw,raw,10,0.17562373331469705,0.23345390331425714,LogReg (raw)
+logreg_raw,raw,11,0.18100923213822254,0.235545233401963,LogReg (raw)
+logreg_raw,raw,12,0.3354552183567728,0.2812809614190687,LogReg (raw)
+xgboost_raw,raw,1,0.23836895111766152,0.2367621808649354,XGBoost (raw)
+xgboost_raw,raw,2,0.23781288382533564,0.2555592739560541,XGBoost (raw)
+xgboost_raw,raw,3,0.23604042720951904,0.25097704128765513,XGBoost (raw)
+xgboost_raw,raw,4,0.28751269772166593,0.26606125917575985,XGBoost (raw)
+xgboost_raw,raw,5,0.22667804323094426,0.23571468875767287,XGBoost (raw)
+xgboost_raw,raw,6,0.3152354570637119,0.2860284893884773,XGBoost (raw)
+xgboost_raw,raw,7,0.3220584596896759,0.3217603601330958,XGBoost (raw)
+xgboost_raw,raw,8,0.2459660592571985,0.25795298889548823,XGBoost (raw)
+xgboost_raw,raw,9,0.1371714179933358,0.20737120449392663,XGBoost (raw)
+xgboost_raw,raw,10,0.17562373331469705,0.19631816456518097,XGBoost (raw)
+xgboost_raw,raw,11,0.18100923213822254,0.1934314263730209,XGBoost (raw)
+xgboost_raw,raw,12,0.3354552183567728,0.26930583948979525,XGBoost (raw)
+logreg_platt,"Platt (static, fit Sep-Oct)",1,0.23836895111766152,0.14092890977891911,"LogReg (Platt, static)"
+logreg_platt,"Platt (static, fit Sep-Oct)",2,0.23781288382533564,0.17294539967065523,"LogReg (Platt, static)"
+logreg_platt,"Platt (static, fit Sep-Oct)",3,0.23604042720951904,0.1719695604740913,"LogReg (Platt, static)"
+logreg_platt,"Platt (static, fit Sep-Oct)",4,0.28751269772166593,0.17802007832493136,"LogReg (Platt, static)"
+logreg_platt,"Platt (static, fit Sep-Oct)",5,0.22667804323094426,0.18096991745022376,"LogReg (Platt, static)"
+logreg_platt,"Platt (static, fit Sep-Oct)",6,0.3152354570637119,0.18900181575770347,"LogReg (Platt, static)"
+logreg_platt,"Platt (static, fit Sep-Oct)",7,0.3220584596896759,0.21320657235054033,"LogReg (Platt, static)"
+logreg_platt,"Platt (static, fit Sep-Oct)",8,0.2459660592571985,0.18832569345891442,"LogReg (Platt, static)"
+logreg_platt,"Platt (static, fit Sep-Oct)",9,0.1371714179933358,0.1541855934176149,"LogReg (Platt, static)"
+logreg_platt,"Platt (static, fit Sep-Oct)",10,0.17562373331469705,0.15824704964748948,"LogReg (Platt, static)"
+logreg_platt,"Platt (static, fit Sep-Oct)",11,0.18100923213822254,0.15963819344738314,"LogReg (Platt, static)"
+logreg_platt,"Platt (static, fit Sep-Oct)",12,0.3354552183567728,0.19207832792450788,"LogReg (Platt, static)"
 logreg_rolling28,rolling Platt 28d (causal),1,0.23836895111766152,,LogReg (rolling Platt 28d)
 logreg_rolling28,rolling Platt 28d (causal),2,0.23781288382533564,,LogReg (rolling Platt 28d)
 logreg_rolling28,rolling Platt 28d (causal),3,0.23604042720951904,,LogReg (rolling Platt 28d)
@@ -43,7 +43,7 @@ logreg_rolling28,rolling Platt 28d (causal),5,0.22667804323094426,,LogReg (rolli
 logreg_rolling28,rolling Platt 28d (causal),6,0.3152354570637119,,LogReg (rolling Platt 28d)
 logreg_rolling28,rolling Platt 28d (causal),7,0.3220584596896759,,LogReg (rolling Platt 28d)
 logreg_rolling28,rolling Platt 28d (causal),8,0.2459660592571985,,LogReg (rolling Platt 28d)
-logreg_rolling28,rolling Platt 28d (causal),9,0.1371714179933358,0.15944504565145032,LogReg (rolling Platt 28d)
-logreg_rolling28,rolling Platt 28d (causal),10,0.17562373331469705,0.15361946165055246,LogReg (rolling Platt 28d)
-logreg_rolling28,rolling Platt 28d (causal),11,0.18100923213822254,0.17724821832576546,LogReg (rolling Platt 28d)
-logreg_rolling28,rolling Platt 28d (causal),12,0.3354552183567728,0.2861506278830862,LogReg (rolling Platt 28d)
+logreg_rolling28,rolling Platt 28d (causal),9,0.1371714179933358,0.15946640073462873,LogReg (rolling Platt 28d)
+logreg_rolling28,rolling Platt 28d (causal),10,0.17562373331469705,0.15362002225568885,LogReg (rolling Platt 28d)
+logreg_rolling28,rolling Platt 28d (causal),11,0.18100923213822254,0.17725416107528943,LogReg (rolling Platt 28d)
+logreg_rolling28,rolling Platt 28d (causal),12,0.3354552183567728,0.2859453379647689,LogReg (rolling Platt 28d)
