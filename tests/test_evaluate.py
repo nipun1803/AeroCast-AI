@@ -131,6 +131,28 @@ def test_flag_daily_top_share_flag_rate():
                for d in np.unique(dates))
 
 
+def test_policy_report_matches_sklearn():
+    from sklearn.metrics import accuracy_score, confusion_matrix, f1_score, precision_score, recall_score
+    y = (RNG.uniform(size=5000) < 0.25).astype(int)
+    flagged = RNG.uniform(size=y.size) < 0.1
+    r = evaluate.policy_report(y, flagged)
+    tn, fp, fn, tp = confusion_matrix(y, flagged).ravel()
+    assert (r["tn"], r["fp"], r["fn"], r["tp"]) == (tn, fp, fn, tp)
+    assert np.isclose(r["accuracy"], accuracy_score(y, flagged))
+    assert np.isclose(r["precision"], precision_score(y, flagged))
+    assert np.isclose(r["recall"], recall_score(y, flagged))
+    assert np.isclose(r["f1"], f1_score(y, flagged))
+
+
+def test_policy_report_flagging_nothing():
+    """A policy that flags nothing (the prior at a precision target it never
+    reaches) predicts every flight on time: accuracy = share of on-time flights."""
+    y = np.array([0, 0, 0, 1])
+    r = evaluate.policy_report(y, np.zeros(4, dtype=bool))
+    assert np.isnan(r["precision"]) and r["recall"] == 0 and r["f1"] == 0
+    assert r["accuracy"] == 0.75 and (r["tn"], r["fn"]) == (3, 1)
+
+
 def test_rolling_platt_is_causal():
     """Outcomes not yet available at a day's decision time must not change
     that day's recalibrated scores."""

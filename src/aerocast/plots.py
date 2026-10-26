@@ -298,6 +298,31 @@ def corr_heatmap(corr, title: str):
     return fig
 
 
+def confusion_matrices(panels: dict[str, dict], title: str):
+    """2x2 confusion matrices side by side (rows actual, columns predicted).
+    ``panels`` maps a panel title to an ``evaluate.policy_report`` dict; each
+    cell shows the count and its share of all flights."""
+    from matplotlib.colors import LinearSegmentedColormap
+    cmap = LinearSegmentedColormap.from_list("seq", [SURFACE, SERIES[0]])
+    fig, axes = plt.subplots(1, len(panels), figsize=(3.4 * len(panels), 3.3), squeeze=False)
+    for ax, (name, r) in zip(axes[0], panels.items()):
+        m = np.array([[r["tn"], r["fp"]], [r["fn"], r["tp"]]])
+        ax.imshow(m, cmap=cmap, vmin=0, vmax=m.sum())
+        ax.grid(False)
+        ax.set(xticks=[0, 1], yticks=[0, 1], xlabel="Predicted", ylabel="Actual")
+        ax.set_xticklabels(["on time", "late"])
+        ax.set_yticklabels(["on time", "late"])
+        ax.set_title(f"{name}\nacc {r['accuracy']:.3f} · P {r['precision']:.3f} · "
+                     f"R {r['recall']:.3f} · F1 {r['f1']:.3f}", fontsize=9)
+        for i in range(2):
+            for j in range(2):
+                ax.text(j, i, f"{m[i, j]:,}\n{m[i, j] / m.sum():.1%}", ha="center", va="center",
+                        fontsize=9, color=SURFACE if m[i, j] > 0.5 * m.sum() else TEXT)
+    fig.suptitle(title, fontsize=11, color=TEXT)
+    fig.tight_layout()
+    return fig
+
+
 def congestion_within_hour(tbl):
     """Delay rate by departure hour for low / mid / high bank-size terciles
     (terciles computed within each hour, so hour is held fixed)."""

@@ -480,7 +480,9 @@ def mean_scores(raw_preds: dict) -> pd.DataFrame:
 def operating_policies(labels: Labels, final_preds: dict, thresholds: dict, choice: dict,
                        names=POLICY_VARIANTS) -> pd.DataFrame:
     """PRIMARY: daily top-k% capacity policy. SECONDARY: score threshold frozen
-    on Sep-Oct for precision >= TARGET_PRECISION. Both fixed before test."""
+    on Sep-Oct for precision >= TARGET_PRECISION. Both fixed before test, so the
+    accuracy, precision, recall, F1 and confusion counts reported for them use
+    no threshold tuned on the evaluated labels."""
     rows = []
     for name in names:
         for s in ["calib", "test"]:
@@ -803,6 +805,15 @@ def evaluation_figures(labels: Labels, final_preds: dict, choice: dict, drift_tb
         figs[f"reliability_{m}_test"] = plots.reliability_diagram(
             yt, {variant_label(k, choice)[0]: final_preds[k]["test"] for k in keys},
             f"{FAMILY[m]} reliability - test")
+    # confusion matrices of the final model at the two pre-declared operating points
+    fv = f"{final}_rule_selected"
+    thr = frozen_thresholds(labels, {fv: final_preds[fv]})[fv]
+    pt = final_preds[fv]["test"]
+    figs[f"confusion_{final}_test"] = plots.confusion_matrices(
+        {f"Frozen threshold {thr:.3f}": evaluate.policy_report(yt, pt >= thr),
+         f"Daily top {config.DAILY_FLAG_SHARE:.0%}": evaluate.policy_report(
+             yt, evaluate.flag_daily_top_share(labels.dates["test"], pt))},
+        f"{variant_label(fv, choice)[0]}: confusion matrices on test")
     figs["monthly_drift_final"] = plots.monthly_drift(
         drift_tbl[drift_tbl.variant == f"{final}_raw"],
         f"{FAMILY[final]} (raw): predicted vs observed delay rate by month")

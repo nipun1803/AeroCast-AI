@@ -193,7 +193,8 @@ def main(quick: bool = False):
         "primary_policy_test": {"policy": primary["policy"], "model": primary["model"],
                                 "calibration": primary["calibration"],
                                 "precision": primary["precision"], "recall": primary["recall"],
-                                "lift": primary["lift"], "flag_rate": primary["flag_rate"]},
+                                "lift": primary["lift"], "flag_rate": primary["flag_rate"],
+                                "f1": primary["f1"], "accuracy": primary["accuracy"]},
         "test": test_tbl[["model", "calibration", "variant", *pipeline.SHOW_COLS]]
         .to_dict(orient="records"),
         "oracle_metric_note": ("oracle_recall@p tunes the threshold on the test labels: "

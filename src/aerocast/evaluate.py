@@ -212,13 +212,22 @@ def flag_daily_top_share(dates, p, share: float = config.DAILY_FLAG_SHARE,
 
 
 def policy_report(y, flagged) -> dict:
+    """Threshold metrics of a flagging decision (flagged = predicted late): flag rate,
+    precision, recall, lift, F1, accuracy and the confusion-matrix counts."""
     y, flagged = np.asarray(y), np.asarray(flagged, dtype=bool)
-    tp = int((flagged & (y == 1)).sum())
+    late = y == 1
+    tp = int((flagged & late).sum())
+    fp = int((flagged & ~late).sum())
+    fn = int((~flagged & late).sum())
+    tn = int((~flagged & ~late).sum())
     return {
         "flag_rate": float(flagged.mean()),
         "precision": float(tp / flagged.sum()) if flagged.any() else float("nan"),
-        "recall": float(tp / (y == 1).sum()),
+        "recall": float(tp / late.sum()),
         "lift": float((tp / flagged.sum()) / y.mean()) if flagged.any() else float("nan"),
+        "f1": float(2 * tp / (2 * tp + fp + fn)) if tp + fp + fn else 0.0,
+        "accuracy": float((tp + tn) / len(y)),
+        "tp": tp, "fp": fp, "fn": fn, "tn": tn,
     }
 
 
