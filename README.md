@@ -26,13 +26,13 @@ Development-time test exposure and other limitations are disclosed in the [devel
 
 Team number: **T49**.
 
-| Member | Role | Main contributions (from commits) |
+| Member | GitHub ID | Role |
 |---|---|---|
-| **Nipun Patlori** | Project lead · pipeline & report integration | Scaffold, central `config`, leakage guards, `models`, `evaluate` (metrics, ECE, calibrators, policies), end-to-end `pipeline` and `run_phase1.py`, rescheduling analysis, `reproduce.sh`, docs/README, IEEE report |
-| **Mohan Kumar C R** | Data & calibration/drift | Data loader, cleaning and temporal splits; PSI and adversarial-validation utilities; drift and calibration-study results, calibrator selection, operating policies |
-| **Krish Dabas** | Features & modelling experiments | Schedule, congestion and lagged-history feature builders; evaluation unit tests; rolling-CV folds, XGBoost configs, ablation, history tuning grid, feature importance |
-| **Omkar Hadole** | EDA, plots & sensitivity | EDA helpers, plotting helpers and figures (reliability, PR/ROC, ablation, importance); permutation importance, month-feature CV, target sensitivity |
-| **Anushka Tyagi** | Notebooks, EDA & results documentation | Authored the four stage notebooks: exploratory analysis with delay-rate figures (01), feature-engineering with distribution plots (02), model training with CV curves (03), and the held-out test evaluation (04), documenting results for each stage |
+| **Nipun Patlori** | [nipun1803](https://github.com/nipun1803) | XGBoost model development; IEEE report |
+| **Anushka Tyagi** | [anu-ushka](https://github.com/anu-ushka) | Logistic regression model development |
+| **Omkar Hadole** | [omkar-hadole](https://github.com/omkar-hadole) | Leakage removal and feature engineering |
+| **Mohan Kumar C R** | [mohan101mk](https://github.com/mohan101mk) | Evaluation metrics, probability calibration and confusion-matrix analysis; IEEE report |
+| **Krish Dabas** | [krish-2509](https://github.com/krish-2509) | Data loading and exploratory data analysis (EDA) |
 
 ## Setup
 
