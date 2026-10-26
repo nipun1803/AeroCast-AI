@@ -12,21 +12,23 @@
 6. **First review round:** the full pipeline ran once while the final-model comparison still used XGBoost's optimistic in-fold early-stopping score; corrected for a methodological reason found from CV alone, which reversed the choice to LogReg.
 7. **Baselines in the policy table:** a constant score showed an apparent lift (Sep–Oct and test). Cause: order-based tie-breaking in the daily policy (rows are in departure order). Now a seeded random tie-break; model scores, policy definition and the 10% share unchanged.
 8. **Second review round (items 1–11):** labels, baselines, assertions, documentation. No modelling decision changed; joint re-tuning of (m, window, C) re-selected the same values.
+9. **Leakage audit (2026-10-26):** a realistic-cancellation test showed that `tail_leg_idx` / `tail_legs_day` changed when a sibling leg was cancelled on day D (the data blank the tail number of cancelled flights). Both were removed on leakage grounds; the decision used the test and CV evidence. An earlier sensitivity refit without all four tail features had already printed a test AP, and the full rerun's test metrics were seen afterwards.
 
 ## Current selection evidence (retain the exposure disclosure above)
 
 | Decision | Evidence |
 |---|---|
-| Decision clock 20:00 (vs 2-day lag) | rolling CV: 0.4715 vs 0.4589; fitting and history clocks both move |
+| Decision clock 20:00 (vs 2-day lag) | rolling CV: 0.4714 vs 0.4590; fitting and history clocks both move |
 | m = 5, window = 14 days, C = 0.1 | rolling CV, tuned jointly |
-| No month feature | rolling CV: LogReg 0.4715 vs 0.4691; XGBoost 0.4474 vs 0.4405 |
+| No month feature | rolling CV of the final model: LogReg 0.4714 vs 0.4691 (XGBoost 0.4500 vs 0.4548, but three of four folds worse) |
 | Day-level history group kept (LogReg) | CV ablation: +0.0114, 3/4 folds |
 | XGBoost configuration | rolling CV |
-| Final model = LogReg | fixed-tree development CV: 0.4715 vs 0.4474 |
+| Final model = LogReg | fixed-tree development CV: 0.4714 vs 0.4500 |
 | Calibration rule outcome (Platt for LogReg, raw for XGBoost) | Sep → Oct |
 | Rolling-Platt window N = 28 | pre-specified 28-day adaptation window; 14/56 sensitivity only; selected long history window is 14 days |
 | Daily top-10% policy | a-priori capacity assumption |
 | Precision target 0.40 | Sep–Oct reachability |
+| No aircraft-rotation features | leakage: realistic-cancellation test (`leakage.cancellation_check`) |
 
 **Implication:** test numbers are exploratory because of the exposure above. Selecting configurations on the same development folds also makes their reported CV scores selection scores rather than independent nested-CV estimates.
 

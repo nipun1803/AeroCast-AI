@@ -86,5 +86,5 @@ The history rates are strongly inter-correlated (nested windows on the same key;
 | Short-memory daily shocks (lag-1 autocorr ~0.4) | 1-day / 7-day lagged rates (day-level group) |
 | Stable carrier / route / aircraft propensities; some tiny groups | 7/14-day entity rates with Bayesian shrinkage (CV-tuned m, window); one-hot min_frequency=50 |
 | Congestion correlates with delay but is confounded with hour | scheduled-bank counts, kept and tested by ablation |
-| Leakage risk from post-departure columns; 31% of D-1 arrivals land after 20:00 | decision clock 20:00 on D-1; outcomes enter history only once known; two leakage tests |
+| Leakage risk from post-departure columns; 31% of D-1 arrivals land after 20:00 | decision clock 20:00 on D-1; outcomes enter history only once known; three leakage checks |
 | History rates strongly inter-correlated (same keys, nested windows) | L2-regularised LogReg; grouped (not per-feature) permutation importance |

@@ -20,10 +20,10 @@ Phase 1 (machine learning only): day-ahead prediction of `arr_delay ≥ 15 min` 
 |---|---|---|---|---|---|---|---|
 | Prior (base rate) | none | 0.258 | 0.500 | 0.192 | 0.007 | 0.007 | 0.000 |
 | Route history | none (smoothed rate) | 0.353 | 0.621 | 0.187 | 0.037 | 0.038 | 0.244 |
-| LogReg (raw) | raw | 0.394 | 0.654 | 0.181 | 0.019 | 0.022 | 0.431 |
-| LogReg (Platt, rule-selected) | Platt (rule-selected) | 0.394 | 0.654 | 0.187 | 0.082 | 0.082 | 0.431 |
-| LogReg (rolling Platt 28d) | rolling Platt 28d (causal) | 0.392 | 0.657 | 0.181 | 0.027 | 0.027 | 0.431 |
-| XGBoost (raw, rule-selected) | raw (rule-selected) | 0.404 | 0.662 | 0.180 | 0.027 | 0.026 | 0.462 |
-| XGBoost (rolling Platt 28d) | rolling Platt 28d (causal) | 0.394 | 0.659 | 0.181 | 0.026 | 0.025 | 0.417 |
+| LogReg (raw) | raw | 0.393 | 0.653 | 0.181 | 0.019 | 0.022 | 0.421 |
+| LogReg (Platt, rule-selected) | Platt (rule-selected) | 0.393 | 0.653 | 0.187 | 0.082 | 0.082 | 0.421 |
+| LogReg (rolling Platt 28d) | rolling Platt 28d (causal) | 0.392 | 0.657 | 0.181 | 0.027 | 0.027 | 0.428 |
+| XGBoost (raw, rule-selected) | raw (rule-selected) | 0.407 | 0.665 | 0.179 | 0.027 | 0.027 | 0.483 |
+| XGBoost (rolling Platt 28d) | rolling Platt 28d (causal) | 0.396 | 0.664 | 0.180 | 0.023 | 0.022 | 0.438 |
 
-Final model: **LogReg (Platt, rule-selected)**. LogReg has the higher development CV mean (0.4715 versus 0.4474), so it is selected by the declared rule. The test AP-difference interval (XGBoost − LogReg, [-0.013, +0.037]) includes zero: it does not establish a test-performance difference, equivalence, or noninferiority. Test exposure during development remains disclosed.
+Final model: **LogReg (Platt, rule-selected)**. LogReg has the higher development CV mean (0.4714 versus 0.4500), so it is selected by the declared rule. The test AP-difference interval (XGBoost − LogReg, [-0.010, +0.040]) includes zero: it does not establish a test-performance difference, equivalence, or noninferiority. Test exposure during development remains disclosed.

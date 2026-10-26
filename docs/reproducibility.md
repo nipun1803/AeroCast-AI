@@ -39,6 +39,8 @@ The verified MacBook Pro run on **2026-10-23** passed **36 tests**, completed th
 
 The equal-mass ECE correction on **2026-10-24** passed the expanded **42-test** suite. Evaluation was recomputed from unchanged saved predictions, notebook 04 was executed again, and affected result/report tables and the PDF were refreshed. No flight-classifier training was rerun; model choices, other metrics, policies and figures remain unchanged. Tied-probability checks cover synthetic label orderings and 50 permutations of five real saved-score variants.
 
+On **2026-10-26** the aircraft-rotation features (`tail_leg_idx`, `tail_legs_day`) were removed: a new realistic-cancellation test showed they changed when a sibling leg was cancelled on the same day. The full pipeline was rerun (about 9 minutes), all four notebooks were re-executed, report assets were exported and the PDF rebuilt, and the **46-test** suite passed. The report was then shortened to 7 pages, with tests that keep its tables, figures and citations aligned with the code; accuracy, F1 and confusion counts were added to the operating-policy results; the suite now passes **51 tests**.
+
 The pipeline overwrites generated `results/` and `figures/`; notebook execution updates stored outputs. For updated report assets, run:
 
 ```bash
@@ -48,14 +50,14 @@ python -B scripts/check_report_numbers.py
 
 Then build the PDF as described in [report/README.md](../report/README.md).
 
-`scripts/reproduce.sh` is the full clean-rebuild helper: it deletes generated results, figures and report assets; runs the pipeline and notebooks; exports report assets; runs tests and the report-number check; and attempts a PDF build when a LaTeX engine is installed. It currently dispatches notebooks through `python -m jupyter nbconvert`, which failed in the reproduced local setup. Use the direct `python -m nbconvert` commands above; this documentation update does not modify the helper.
+`scripts/reproduce.sh` is the full clean-rebuild helper: it deletes generated results, figures and report assets; runs the pipeline and notebooks; exports report assets; runs tests and the report-number check; and attempts a PDF build when a LaTeX engine is installed. It dispatches notebooks through `python -m jupyter nbconvert`, which works in the pinned environment (checked on 2026-10-26); the staged commands above are equivalent.
 
 For explanation-only changes, model training and notebook execution are unnecessary. Recompile the PDF only if its LaTeX source changes. The notebook table assertions compare calculations with saved tables; they do not automatically check handwritten Markdown explanations.
 
 ## Artefacts
 
 * `results/` (27 files): `ablation.csv`, `ablation_steps.csv`, `adversarial_importance.csv`, `adversarial_validation.csv`, `calibration_study.csv`, `calibrator_selection.csv`, `cv_logreg.csv`, `cv_summary.csv`, `cv_xgb_configs.csv`, `cv_xgb_folds.csv`, `headline_by_month.csv`, `headline_test.csv`, `history_tuning.csv`, `logreg_coefficients.csv`, `mean_scores.csv`, `metrics_all.csv`, `month_feature_cv.csv`, `monthly_calibration_drift.csv`, `operating_policies.csv`, `permutation_importance_groups.csv`, `predictions.csv.gz`, `psi.csv`, `rescheduling_candidates.csv`, `single_month_tree_curve.csv`, `summary.json`, `target_sensitivity.csv`, `xgb_gain_importance.csv`
-* `figures/`: 22 PNGs; `report/figures/`: 22 matching copies; `report/tables/`: 20 CSV tables and 20 booktabs `.tex` tables; `report/main.pdf`: the existing 20-page report. Counts describe this saved experiment, not a universal requirement for other datasets.
+* `figures/`: 23 PNGs (all figures of the pipeline and notebooks); `report/figures/`: the 8 the report uses; `report/tables/`: its 7 tables as CSV + booktabs `.tex`; `report/main.pdf`: the 7-page report. `scripts/export_report_assets.py` clears and rewrites both report folders, so they hold exactly what `main.tex` uses. Counts describe this saved experiment, not a universal requirement for other datasets.
 
 ## macOS note
 
