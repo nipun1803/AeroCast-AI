@@ -1,0 +1,6 @@
+group,n,content
+Identifiers,3,"carrier, origin, destination"
+Schedule,10,"cyclic departure and arrival time of day, cyclic weekday, departure hour, weekend flag, days to holiday (cap 14), log distance"
+Congestion,5,"scheduled flights at the origin in the hour, the ±1 h window and the day; destination and carrier daily volumes"
+Entity history,18,"smoothed delay rate and log-volume of origin (7 d), carrier (7, 14 d), destination, route, carrier-route, origin-hour, flight number and tail number (14 d)"
+Day history,7,"network delay rate (1, 7 d); origin delay rate, volume and mean delay (1 d); network and origin cancellation rates (1 d)"

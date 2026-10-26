@@ -16,3 +16,8 @@ data/raw/*.csv
 # results/ IS committed, including results/predictions.csv.gz (~6 MB): it is the
 # audit trail for every reported number and lets notebook 04 run without
 # re-training. Regenerate everything with `python scripts/run_phase1.py`.
+
+# --- report
+# Earlier 22-page version of the report (kept locally as a viva supplement;
+# compiles on its own: cd report/long_version && tectonic -X compile main.tex).
+report/long_version/
