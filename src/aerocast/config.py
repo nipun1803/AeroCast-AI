@@ -85,8 +85,8 @@ LONG_WINDOW_GRID = [14, 28, 56]
 # AS DEPLOYED (XGBoost at its fixed, fold-averaged tree count; its search score
 # early-stops on the validation fold itself and is optimistic). The pipeline
 # re-derives this from CV and fails loudly if it disagrees with the value here.
-# Availability-filtered CV: LogReg 0.4715 vs XGBoost 0.4474 (fixed trees);
-# XGBoost's in-fold early-stopping score (0.4761) is reported but not used.
+# Availability-filtered CV: LogReg 0.4714 vs XGBoost 0.4500 (fixed trees);
+# XGBoost's in-fold early-stopping score (0.4749) is reported but not used.
 FINAL_MODEL = "logreg"
 
 # --- Calibration (fixed before test) -----------------------------------------

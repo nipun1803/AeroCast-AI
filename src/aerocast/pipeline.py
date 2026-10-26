@@ -683,22 +683,44 @@ def logreg_coefficients(model) -> pd.Series:
 # ---------------------------------------------------------------------------
 # Target sensitivity & distribution shift
 # ---------------------------------------------------------------------------
-def target_sensitivity(main: Prepared, main_raw: dict, C: float, xgb_params: dict,
+def is_tail_feature(col: str) -> bool:
+    """Features derived from the tail number (its delay history and volume)."""
+    return "_tailnum_" in col
+
+
+def sensitivity_num_cols(P: Prepared) -> list[str]:
+    """Numeric features for the target-sensitivity refits: all but tail features.
+
+    In this dataset a tail number is missing only for cancelled flights, so
+    once cancellations count as delayed, tail features (or their missingness,
+    which LogReg sees as an indicator and XGBoost as a NaN branch) reveal the
+    label. Imputing them would not help: any value that depends on whether the
+    tail is missing carries the same signal.
+    """
+    return [c for c in P.num_cols if not is_tail_feature(c)]
+
+
+def target_sensitivity(main: Prepared, C: float, xgb_params: dict,
                        n_boot: int = config.N_BOOTSTRAP) -> pd.DataFrame:
     """Refit both models (same hyper-parameters) with cancelled AND diverted
     flights counted as delayed, and compare raw-score test metrics and the
-    primary policy with the main target. Features are unchanged."""
+    primary policy with the main target.
+
+    Both targets are refitted on the same feature set without tail features
+    (``sensitivity_num_cols``), so the comparison is like for like; on the
+    main target, dropping them changes LogReg test AP by less than 0.0001."""
     alt = prepare(target="arr15_or_cancel", raw=main.raw)
-    fit = alt.train_fit_mask
-    lr = models.make_logreg(alt.cat_cols, alt.num_cols, C).fit(
-        alt.Xs["train"].loc[fit], alt.ys["train"][fit])
-    xg = models.fit_xgb_final(alt.Xs["train"].loc[fit], alt.ys["train"][fit], xgb_params)
-    alt_raw = {"logreg": lr.predict_proba(alt.Xs["test"])[:, 1],
-               "xgboost": xg.predict_proba(alt.Xs["test"])[:, 1]}
     rows = []
-    for target, P, scores in [("arr_delay>=15 (main)", main,
-                               {m: main_raw[m]["test"] for m in MODELS}),
-                              ("arr_delay>=15 OR cancelled/diverted", alt, alt_raw)]:
+    for target, P in [("arr_delay>=15 (main)", main),
+                      ("arr_delay>=15 OR cancelled/diverted", alt)]:
+        nums = sensitivity_num_cols(P)
+        cols = P.cat_cols + nums
+        fit = P.train_fit_mask
+        X_fit, y_fit = P.Xs["train"].loc[fit, cols], P.ys["train"][fit]
+        lr = models.make_logreg(P.cat_cols, nums, C).fit(X_fit, y_fit)
+        xg = models.fit_xgb_final(X_fit, y_fit, xgb_params)
+        scores = {"logreg": lr.predict_proba(P.Xs["test"][cols])[:, 1],
+                  "xgboost": xg.predict_proba(P.Xs["test"][cols])[:, 1]}
         y, d = P.ys["test"], P.labels.dates["test"]
         diff = evaluate.bootstrap_diff_ci(d, y, scores["xgboost"], scores["logreg"],
                                           n_boot=n_boot)

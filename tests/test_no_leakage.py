@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from aerocast import config, data, features, leakage, models
+from aerocast import config, data, features, leakage, models, pipeline
 
 CUTOFF = pd.Timestamp("2013-06-15")
 
@@ -45,6 +45,29 @@ def test_late_evening_d_minus_1_arrivals_do_not_reach_day_d(raw, built, target_d
     assert c["d_minus_1_flights_after_clock"] > 0
     assert c["changed_cells_on_D_after_scrambling_late"] == 0
     assert c["changed_cells_on_D_after_scrambling_early"] > 0
+
+
+def test_sensitivity_refits_exclude_tail_features():
+    """Missing tail numbers occur only for cancelled flights, so tail features
+    must not enter the cancellation-inclusive sensitivity target."""
+    cols = ["hist_rate_tailnum_14d", "hist_logn_tailnum_14d",
+            "hist_rate_carrier_flight_14d", "sched_origin_day"]
+    assert [c for c in cols if not pipeline.is_tail_feature(c)] == cols[2:]
+
+
+@pytest.mark.parametrize("target_date", ["2013-02-14", "2013-07-11", "2013-12-20"])
+def test_same_day_cancellation_does_not_reach_other_flights(raw, built, target_date):
+    """A realistic day-D cancellation (tail number blanked too, as in the raw
+    data) must leave every feature of the other day-D flights unchanged. Only
+    the cancelled flights' own tail-history features may move (they lose their
+    tail number); the sensitivity target excludes those, and their movement is
+    the positive control that keeps this test from being vacuous."""
+    c = leakage.cancellation_check(raw, target_date, X=built[0])
+    tail = {col for col in built[0].columns if pipeline.is_tail_feature(col)}
+    assert c["flights_cancelled"] > 0 and c["other_flights_on_D"] > 0
+    assert c["changed_columns_other_flights"] == []
+    assert c["changed_columns_cancelled_flights"]
+    assert set(c["changed_columns_cancelled_flights"]) <= tail
 
 
 def test_timezone_table_matches_data(raw):

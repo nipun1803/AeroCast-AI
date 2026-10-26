@@ -134,8 +134,8 @@ def main(quick: bool = False):
     gain.to_csv(R / "xgb_gain_importance.csv")
     pipeline.logreg_coefficients(lr.model).to_csv(R / "logreg_coefficients.csv")
 
-    log("target sensitivity (cancelled/diverted = delayed)")
-    sens = pipeline.target_sensitivity(P, raw_preds, lr.C, xgb.params, n_boot)
+    log("target sensitivity (cancelled/diverted = delayed; tail features excluded)")
+    sens = pipeline.target_sensitivity(P, lr.C, xgb.params, n_boot)
     sens.to_csv(R / "target_sensitivity.csv", index=False)
 
     log("covariate drift (PSI, adversarial validation)")

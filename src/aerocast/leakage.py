@@ -64,6 +64,54 @@ def _scramble_outcomes(df: pd.DataFrame, rows: pd.Series, seed: int) -> pd.DataF
     return df
 
 
+def _cancel_rows(df: pd.DataFrame, rows: pd.Index) -> pd.DataFrame:
+    """Cancel ``rows`` the way the raw data records a cancellation: no
+    departure or arrival record and no tail number."""
+    df = df.copy()
+    df.loc[rows, ["dep_time", "dep_delay", "arr_time", "arr_delay", "air_time", "tailnum"]] = np.nan
+    return data.add_target(df)
+
+
+def cancellation_check(df: pd.DataFrame, target_date, X: pd.DataFrame | None = None,
+                       share: float = 0.3, seed: int = 0) -> dict:
+    """Does a day-D cancellation reach day D's features?
+
+    ``scramble_future`` randomises outcomes but keeps every tail number, so it
+    cannot see a leak through tail missingness. Here a random ``share`` of the
+    day's operated flights is cancelled realistically (tail number blanked
+    too), features are rebuilt, and the changed numeric columns are returned
+    separately for
+
+    * the OTHER flights of day D: must be empty, otherwise a same-day
+      cancellation reaches the features of flights that are still predicted;
+    * the cancelled flights themselves: they lose their tail number, so their
+      tail-history features move. Only features that the cancellation-inclusive
+      sensitivity target excludes may appear (this is also the positive control).
+    """
+    D = pd.Timestamp(target_date)
+    if X is None:
+        X, _ = features.build_features(df)
+    rng = np.random.default_rng(seed)
+    on_d = (df["date"] == D).to_numpy()
+    pick = on_d & df["dep_time"].notna().to_numpy() & (rng.random(len(df)) < share)
+    X2, _ = features.build_features(_cancel_rows(df, df.index[pick]))
+    num = X.select_dtypes("number").columns
+
+    def changed_columns(rows):
+        a, b = X.loc[rows, num].to_numpy(), X2.loc[rows, num].to_numpy()
+        changed = ~((a == b) | (np.isnan(a) & np.isnan(b)))
+        return sorted(num[changed.any(axis=0)].tolist())
+
+    others = on_d & ~pick
+    return {
+        "target_date": str(D.date()),
+        "flights_cancelled": int(pick.sum()),
+        "other_flights_on_D": int(others.sum()),
+        "changed_columns_other_flights": changed_columns(others),
+        "changed_columns_cancelled_flights": changed_columns(pick),
+    }
+
+
 def decision_clock_check(df: pd.DataFrame, target_date, X: pd.DataFrame | None = None,
                          seed: int = 0) -> dict:
     """Do late-evening D-1 arrivals leak into day D's features?

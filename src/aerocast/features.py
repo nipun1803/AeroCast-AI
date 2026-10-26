@@ -4,7 +4,7 @@ Three families, each tied to what is legitimately known at the decision time
 (``config.DECISION_HOUR``:00 on day D-1):
 
 1. schedule / calendar  -- from the published timetable of day D
-2. congestion / rotation -- counts over the *scheduled* timetable of day D
+2. congestion           -- counts over the *scheduled* timetable of day D
    (cancelled flights included: at decision time nobody knows they will be
    cancelled)
 3. history              -- outcomes that were already KNOWN at the decision time
@@ -64,7 +64,7 @@ def schedule_features(df: pd.DataFrame, include_month: bool = False) -> pd.DataF
 
 
 # ---------------------------------------------------------------------------
-# 2. Scheduled congestion & aircraft rotation
+# 2. Scheduled congestion
 # ---------------------------------------------------------------------------
 def congestion_features(df: pd.DataFrame) -> pd.DataFrame:
     out = pd.DataFrame(index=df.index)
@@ -85,14 +85,10 @@ def congestion_features(df: pd.DataFrame) -> pd.DataFrame:
     )
     out["sched_origin_3h"] = bank
 
-    # How many NYC departures this aircraft has today, and which one this is.
-    # Later legs inherit upstream delay, so leg index is a propagation proxy.
-    has_tail = df["tailnum"].notna()
-    g = df[has_tail].groupby(["tailnum", "date"])["sched_dep_dt"]
-    out["tail_leg_idx"] = np.nan
-    out["tail_legs_day"] = np.nan
-    out.loc[has_tail, "tail_leg_idx"] = g.rank(method="first")
-    out.loc[has_tail, "tail_legs_day"] = g.transform("size")
+    # No aircraft-rotation features (leg index, legs per day). They would count
+    # an aircraft's day-D departures by tail number, but the data blank the
+    # tail number of many cancelled flights, so the count would depend on
+    # day-D cancellations (see leakage.cancellation_check).
     return out
 
 
