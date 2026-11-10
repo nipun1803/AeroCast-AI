@@ -1,0 +1,18 @@
+{
+  "fit_date": "2013-09-01",
+  "train_rows": 211684,
+  "fit_rows": 211517,
+  "fit_rows_excluded_by_clock": 167,
+  "min_cat_freq": 50,
+  "numeric_inputs": 40,
+  "numeric_inputs_with_missing_indicators": 40,
+  "missing_indicator_columns": [],
+  "embedding_tables": {
+    "carrier": 16,
+    "origin": 4,
+    "dest": 94,
+    "tailnum": 1569,
+    "carrier_flight": 1394,
+    "origin_hour": 55
+  }
+}

@@ -1,6 +1,6 @@
 # AeroCast-AI Phase 2: Deep Learning and Hybrid
 
-**Team T49 · AML Project 21 · Phase 2 (deep learning)**. Status: **protocol fixed; no model trained yet**.
+**Team T49 · AML Project 21 · Phase 2 (deep learning)**. Status: **protocol fixed; network inputs built (Step 2); no model trained yet**.
 
 Phase 2 adds deep-learning models to the Phase 1 setup ([`../phase1/`](../phase1/)) and keeps everything else identical, so that the comparison is fair:
 
@@ -15,3 +15,19 @@ The selection rules and leakage safeguards were committed before any model was t
 | [docs/development_protocol.md](docs/development_protocol.md) | pre-registered training, selection and calibration rules, test lock, change log |
 | [docs/leakage_safeguards.md](docs/leakage_safeguards.md) | global leakage rules, deep-learning-specific risks, and the tests each step must pass |
 
+## Run
+
+From `phase2/`, with the shared venv (`../.venv`) active and `aerocast` installed from `../phase1`:
+
+```bash
+python -B -m pytest -q -p no:cacheprovider        # leakage and alignment tests
+python -B scripts/run_phase2.py                    # writes results/
+python -B -m jupyter nbconvert --to notebook --execute --inplace \
+  --ExecutePreprocessor.kernel_name=aerocast notebooks/05_dl_data.ipynb
+```
+
+| | |
+|---|---|
+| [notebooks/05_dl_data.ipynb](notebooks/05_dl_data.ipynb) | network inputs, fitting clock, cold-start coverage |
+| `src/aerocast_dl/` | `config` (Phase 2 settings), `guards` (leakage assertions), `tensors` (train-only encoders) |
+| `results/` | `data_summary.json`, `cold_start.csv` |
