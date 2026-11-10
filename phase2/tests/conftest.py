@@ -9,6 +9,8 @@ ROOT = Path(__file__).resolve().parents[1]
 for p in (ROOT / "src", ROOT.parent / "phase1" / "src"):
     sys.path.insert(0, str(p))
 
+import aerocast_dl  # noqa: E402,F401  (torch before XGBoost)
+
 
 @pytest.fixture(scope="session")
 def P():

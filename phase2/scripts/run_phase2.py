@@ -23,6 +23,7 @@ ROOT = Path(__file__).resolve().parents[1]
 for p in (ROOT / "src", ROOT.parent / "phase1" / "src"):
     sys.path.insert(0, str(p))
 
+import aerocast_dl  # noqa: E402,F401  (loads torch before XGBoost; see its docstring)
 import numpy as np  # noqa: E402
 
 from aerocast import config as p1  # noqa: E402
