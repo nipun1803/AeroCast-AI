@@ -64,16 +64,17 @@ def id_columns(meta: pd.DataFrame, ids=config.ID_COLS) -> pd.DataFrame:
     return pd.DataFrame({c: build[c](meta) for c in ids}, index=meta.index)
 
 
-def model_inputs(P: Prepared, ids=()) -> tuple[pd.DataFrame, pd.DataFrame]:
+def model_inputs(P: Prepared, ids=(), num_cols=None) -> tuple[pd.DataFrame, pd.DataFrame]:
     """(categorical frame, numeric frame) for all modelling rows.
 
     Categorical = the Phase 1 categorical features plus optional ``ids``;
-    numeric = the Phase 1 numeric features, in Phase 1 column order.
+    numeric = the Phase 1 numeric features (or the subset ``num_cols``, for
+    ablations), in Phase 1 column order.
     """
     cats = P.X[P.cat_cols].astype(object)
     if ids:
         cats = pd.concat([cats, id_columns(P.meta, ids)], axis=1)
-    return cats, P.X[P.num_cols]
+    return cats, P.X[list(num_cols) if num_cols is not None else P.num_cols]
 
 
 # ---------------------------------------------------------------------------
@@ -144,7 +145,7 @@ class TabularEncoder:
 
 
 def fit_encoder(P: Prepared, rows: np.ndarray, fit_date, ids=(),
-                min_freq: int = config.MIN_CAT_FREQ) -> TabularEncoder:
+                min_freq: int = config.MIN_CAT_FREQ, num_cols=None) -> TabularEncoder:
     """Fit the encoder on modelling-row positions ``rows`` for a model fitted
     at the decision clock of ``fit_date``.
 
@@ -155,7 +156,7 @@ def fit_encoder(P: Prepared, rows: np.ndarray, fit_date, ids=(),
     info = row_info(P).iloc[rows]
     guards.assert_rows_in_splits(info["split"], {"train"}, "encoder fit")
     guards.assert_labels_available(info["avail"], fit_date, "encoder fit")
-    cats, nums = model_inputs(P, ids)
+    cats, nums = model_inputs(P, ids, num_cols)
     return TabularEncoder(min_freq).fit(cats.iloc[rows], nums.iloc[rows])
 
 
