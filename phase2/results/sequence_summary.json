@@ -1,0 +1,108 @@
+{
+  "seq_len": 28,
+  "raw_channels": [
+    "n_arr",
+    "n_late",
+    "delay_sum",
+    "n_dep",
+    "n_cancel"
+  ],
+  "model_channels": [
+    "log_n_arr",
+    "late_rate",
+    "mean_delay",
+    "log_n_dep",
+    "cancel_rate",
+    "has_arrivals"
+  ],
+  "entity_types": {
+    "origin": {
+      "keys": [
+        "origin"
+      ],
+      "entities": 3,
+      "window_shape": [
+        365,
+        3,
+        28,
+        5
+      ],
+      "modelling_rows_with_empty_window": 0.0,
+      "mean_known_arrivals_per_window": 8234.439759354877,
+      "mismatches_vs_phase1_14d": 0,
+      "normaliser_mean": [
+        5.48879,
+        0.2557,
+        8.507737,
+        5.5259,
+        0.028259
+      ],
+      "normaliser_sd": [
+        1.058656,
+        0.150151,
+        16.538074,
+        1.059457,
+        0.060349
+      ]
+    },
+    "carrier": {
+      "keys": [
+        "carrier"
+      ],
+      "entities": 16,
+      "window_shape": [
+        365,
+        16,
+        28,
+        5
+      ],
+      "modelling_rows_with_empty_window": 1.244930797409299e-05,
+      "mean_known_arrivals_per_window": 3140.155323790939,
+      "mismatches_vs_phase1_14d": 0,
+      "normaliser_mean": [
+        3.143755,
+        0.252326,
+        8.24545,
+        3.177931,
+        0.026918
+      ],
+      "normaliser_sd": [
+        1.689707,
+        0.243361,
+        26.626417,
+        1.695614,
+        0.08633
+      ]
+    },
+    "route": {
+      "keys": [
+        "origin",
+        "dest"
+      ],
+      "entities": 224,
+      "window_shape": [
+        365,
+        224,
+        28,
+        5
+      ],
+      "modelling_rows_with_empty_window": 0.0003454682962810805,
+      "mean_known_arrivals_per_window": 281.43467692489645,
+      "mismatches_vs_phase1_14d": 0,
+      "normaliser_mean": [
+        1.462056,
+        0.261807,
+        9.886979,
+        1.493525,
+        0.030253
+      ],
+      "normaliser_sd": [
+        0.805819,
+        0.31524,
+        32.171097,
+        0.80355,
+        0.121318
+      ]
+    }
+  }
+}

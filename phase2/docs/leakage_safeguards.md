@@ -43,6 +43,8 @@ Row shuffling inside a training window is allowed: every feature is already comp
 | 4 | `test_sequence_late_arrival` | A D−1 arrival after 20:00 first appears in the D+1 sequence |
 | 4 | `test_sequence_cancellation` | Phase 1 cancellation check extended to the sequences |
 | 4 | `test_no_tail_day_counts` | G7 |
+| 4 | `test_sequence_normalizer_train_only` | Sequence normaliser statistics ignore every outcome from 1 Sep on; calibration rows are refused |
+| 4 | `test_encoder_shapes_and_no_batch_coupling` | A row's GRU encoding is the same alone or inside a batch |
 | 5 | `test_wide_init_fold_only` | The wide part's initial weights come from a LogReg fitted on that fold's training rows |
 | 5 | `test_embedding_transfer_low_card` | Only allowed embeddings reach XGBoost |
 | 7 | `test_calibrator_clock` | Rolling calibrators for day D use only outcomes known by D's decision clock |
