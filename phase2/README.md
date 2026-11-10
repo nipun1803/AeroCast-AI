@@ -24,12 +24,17 @@ python -B -m pytest -q -p no:cacheprovider        # leakage and alignment tests
 python -B scripts/run_phase2.py                    # writes results/
 python -B -m jupyter nbconvert --to notebook --execute --inplace \
   --ExecutePreprocessor.kernel_name=aerocast \
-  notebooks/05_dl_data.ipynb notebooks/07_temporal_hybrid.ipynb
+  notebooks/0*.ipynb notebooks/1*.ipynb
 ```
 
 | | |
 |---|---|
-| [notebooks/05_dl_data.ipynb](notebooks/05_dl_data.ipynb) | network inputs, fitting clock, cold-start coverage |
-| [notebooks/07_temporal_hybrid.ipynb](notebooks/07_temporal_hybrid.ipynb) | Part A: causal history windows, decision clock, equality with Phase 1 |
+| [05_network_inputs](notebooks/05_network_inputs.ipynb) | Step 2: network inputs, fitting clock, cold-start coverage |
+| [06_embedding_mlp](notebooks/06_embedding_mlp.ipynb) | Step 3: embedding MLP search, 5-seed CV, learning curves, learned embeddings |
+| [07_gru_history_model](notebooks/07_gru_history_model.ipynb) | Step 4: causal history windows, decision clock, GRU model |
+| [08_wide_deep_hybrid](notebooks/08_wide_deep_hybrid.ipynb) | Step 5: Wide & Deep on the Phase 1 LogReg; embeddings into XGBoost |
+| [09_ablation_studies](notebooks/09_ablation_studies.ipynb) | Step 6: ablations on rolling CV |
+| [10_calibration_and_test](notebooks/10_calibration_and_test.ipynb) | Step 7: Sep→Oct calibration, final-model rule, the one test run |
+| [11_whatif_rescheduling](notebooks/11_whatif_rescheduling.ipynb) | Step 8: what-if rescheduling under explicit assumptions |
 | `src/aerocast_dl/` | `config` (Phase 2 settings), `guards` (leakage assertions), `tensors` (train-only encoders), `sequences` (causal daily history windows), `models` (GRU encoder) |
 | `results/` | `data_summary.json`, `cold_start.csv`, `sequence_summary.json` |
