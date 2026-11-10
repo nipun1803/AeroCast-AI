@@ -297,3 +297,62 @@ def stage_figures(P, cache, log) -> None:
     (R / "learning_curves.json").write_text(json.dumps(curves, indent=2))
     plots.learning_curves(curves).savefig(F / "learning_curves.png", dpi=200)
     log(f"figures: {sorted(p.name for p in F.glob('*.png'))}")
+
+
+# ---------------------------------------------------------------------------
+# Diagnostics: why does the network trail LogReg? (CV only, search seed)
+# ---------------------------------------------------------------------------
+def stage_diagnostics(P, cache, log) -> None:
+    """Decompose the MLP-LogReg gap on the rolling folds (single seed):
+
+    D0/D1  LogReg on all fold rows vs without the inner-holdout days
+           (what an early-stopped network trains on)
+    D2/D3  linear network (one-hot, no hidden layer = a logistic regression)
+           early-stopped vs refitted: does our training loop reach sklearn's LogReg?
+    D4/D5  selected MLP early-stopped vs refitted: what the hidden layers add
+    D6     selected MLP without the day-level history group (memorisation check)
+    """
+    from aerocast import models as p1_models
+    y = train.tensors.row_info(P)["y"].to_numpy()
+    folds = list(train.folds(P))
+    s = config.SEARCH_SEED
+
+    def logreg(drop_last: bool):
+        out = []
+        for k, fit_rows, va, fd in folds:
+            r = train.inner_split(P, fit_rows, fd)[0] if drop_last else fit_rows
+            m = p1_models.make_logreg(P.cat_cols, P.num_cols, config.LOGREG_C)
+            m.fit(P.X.iloc[r][P.feat_cols], y[r])
+            out.append((average_precision_score(y[va], m.decision_function(P.X.iloc[va][P.feat_cols])), np.nan))
+        return out
+
+    def net(spec, refit: bool):
+        out = []
+        for k, fit_rows, va, fd in folds:
+            inp = cache.get(("fold", k), fit_rows, fd, spec)
+            tr, es = train.inner_split(P, fit_rows, fd)
+            n, info = (train.refit_as_deployed(spec, inp, fit_rows, tr, es, s) if refit
+                       else train.fit(spec, inp, tr, s, es_rows=es))
+            out.append((average_precision_score(y[va], train.predict_logits(n, inp, va)), info["best_epoch"]))
+        return out
+
+    linear = train.Spec(name="linear", cat_mode="onehot", depth=0, dropout=0.0)
+    mlp = load_spec("mlp")
+    runs = [
+        ("D0", "LogReg, all fold rows (Phase 1)", lambda: logreg(False)),
+        ("D1", "LogReg without the last 14 days", lambda: logreg(True)),
+        ("D2", "linear network, early-stopped (no last 14 days)", lambda: net(linear, False)),
+        ("D3", "linear network, refitted on all fold rows", lambda: net(linear, True)),
+        ("D4", "selected MLP, early-stopped (no last 14 days)", lambda: net(mlp, False)),
+        ("D5", "selected MLP, refitted on all fold rows", lambda: net(mlp, True)),
+        ("D6", "selected MLP refitted, without day-level history",
+         lambda: net(mlp.with_params(drop_groups=("history_day",)), True)),
+    ]
+    rows = []
+    for key, label, fn in runs:
+        res = fn()
+        rows.append({"diagnostic": key, "label": label, "cv_pr_auc": float(np.mean([a for a, _ in res])),
+                     **{c: a for c, (a, _) in zip(FOLD_COLS, res)},
+                     "best_epochs": "/".join("" if np.isnan(e) else str(int(e)) for _, e in res)})
+        log(f"  {key} {label}: {rows[-1]['cv_pr_auc']:.4f}")
+    pd.DataFrame(rows).to_csv(config.RESULTS_DIR / "diagnostics.csv", index=False)

@@ -11,6 +11,7 @@ Stages are added step by step (docs/development_protocol.md):
   emb_xgb    Step 5: MLP embeddings -> Phase 1 XGBoost (separate process)
   ablation   Step 6: ablations, 5-seed CV
   figures    CV figures (model comparison, ablations, learning curves)
+  diagnostics why the MLP trails LogReg: data loss vs capacity (CV, one seed)
   final_fit  Step 7: refit every family on all training rows (no labels used to score)
   calibrate  Step 7: Sep -> Oct calibrator rule, frozen thresholds, final-model rule
   reschedule Step 8: what-if rescheduling rule tuned on Sep-Oct
@@ -46,7 +47,7 @@ from aerocast_dl import config, sequences, tensors, train  # noqa: E402
 from aerocast_dl import evaluation, testlock  # noqa: E402
 from aerocast_dl import pipeline as dl_pipeline  # noqa: E402
 
-STAGES = ["data", "sequences", "mlp", "gru", "hybrid", "emb_xgb", "ablation", "figures",
+STAGES = ["data", "sequences", "mlp", "gru", "hybrid", "emb_xgb", "ablation", "figures", "diagnostics",
           "final_fit", "calibrate", "reschedule", "final"]
 EVAL_STAGES = {"final_fit", "calibrate", "reschedule", "final"}
 
