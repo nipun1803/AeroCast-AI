@@ -4,9 +4,12 @@ Every network is fitted by the same procedure (docs/development_protocol.md):
 
 1. inputs (encoder, sequence normaliser, wide LogReg) are fitted on the
    model's own fitting rows, through the leakage guards;
-2. CV: the fold's training rows minus their last ``INNER_HOLDOUT_DAYS`` days
-   are trained on; early stopping watches log loss on those last days only;
-   the validation month is scored once, at the end;
+2. CV, exactly as deployed: train on the fold's rows minus their last
+   ``INNER_HOLDOUT_DAYS`` days with early stopping on those days to choose
+   the epoch count, then refit on ALL the fold's rows for that many epochs
+   and score the validation month once. (Scoring the early-stopped model
+   instead would score a model that never saw the freshest 14 days, which
+   the deployed refit does see.)
 3. final model: all training rows available at ``FINAL_FIT_DATE``, for a
    fixed number of epochs (the mean of the CV best epochs);
 4. the deployed prediction is the mean logit over ``config.SEEDS``.
@@ -80,6 +83,11 @@ class Inputs:
     wide: torch.Tensor | None = None        # [n_rows, wide_dim]
     wide_coef: np.ndarray | None = None
     wide_intercept: float | None = None
+    # fitted transforms, kept so that modified feature rows can be re-encoded
+    # (what-if rescheduling); all were fitted on the same fitting rows
+    encoder: tensors.TabularEncoder | None = None
+    num_cols: list[str] | None = None
+    wide_pre: object | None = None
 
     def batch(self, idx: torch.Tensor) -> dict:
         b = {"cat": self.cat[idx], "num": self.num[idx]}
@@ -104,7 +112,7 @@ def build_inputs(P: Prepared, seqs, fit_rows: np.ndarray, fit_date, spec: Spec) 
     E = enc.transform(*tensors.model_inputs(P, spec.ids, num_cols))
     y = tensors.row_info(P)["y"].to_numpy(dtype=np.float32)
     inp = Inputs(torch.from_numpy(E.cat), torch.from_numpy(E.num), torch.from_numpy(y),
-                 E.cardinalities)
+                 E.cardinalities, encoder=enc, num_cols=num_cols)
     if spec.seq_names:
         sub = {n: seqs[n] for n in spec.seq_names}
         norm = sequences.fit_sequence_normalizer(P, sub, fit_rows, fit_date)
@@ -124,6 +132,7 @@ def build_inputs(P: Prepared, seqs, fit_rows: np.ndarray, fit_date, spec: Spec) 
         inp.wide = torch.from_numpy(Z.astype(np.float32))
         inp.wide_coef = lr.named_steps["clf"].coef_.ravel()
         inp.wide_intercept = float(lr.named_steps["clf"].intercept_[0])
+        inp.wide_pre = lr.named_steps["pre"]
     return inp
 
 
@@ -252,6 +261,14 @@ class InputCache:
         return self._c[k]
 
 
+def refit_as_deployed(spec: Spec, inp: Inputs, fit_rows, tr, es, seed: int):
+    """Choose the epoch count on the inner holdout, then refit on all
+    ``fit_rows`` for that many epochs (the deployed procedure)."""
+    _, info = fit(spec, inp, tr, seed, es_rows=es)
+    net, _ = fit(spec, inp, fit_rows, seed, epochs=info["best_epoch"])
+    return net, info
+
+
 def cv(P: Prepared, spec: Spec, seeds, cache: InputCache, keep_logits: bool = False) -> dict:
     """Fold x seed results and the seed-ensemble ("as deployed") AP per fold."""
     rows, ens, logits = [], [], {}
@@ -261,7 +278,7 @@ def cv(P: Prepared, spec: Spec, seeds, cache: InputCache, keep_logits: bool = Fa
         y_va = inp.y[torch.as_tensor(va)].numpy()
         zs = []
         for s in seeds:
-            net, info = fit(spec, inp, tr, s, es_rows=es)
+            net, info = refit_as_deployed(spec, inp, fit_rows, tr, es, s)
             z = predict_logits(net, inp, va)
             zs.append(z)
             rows.append({"fold": k, "val_month": int(P.meta["month"].iloc[va[0]]), "seed": s,

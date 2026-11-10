@@ -102,3 +102,46 @@ def test_wide_init_fold_only(P):
                                rtol=1e-4, atol=1e-4)
     with pytest.raises(guards.LeakageError):
         train.build_inputs(P, {}, P.idx["calib"][:500], config.FINAL_FIT_DATE, spec)
+
+
+def test_embedding_transfer_low_card():
+    """Only carrier / origin / destination embeddings reach XGBoost; tail and
+    flight embeddings (label-memorising for rare IDs) are never transferred."""
+    from aerocast_dl import models, pipeline
+    cols = ["carrier", "origin", "dest", "tailnum", "carrier_flight"]
+    cards = [16, 4, 94, 1569, 1394]
+    net = models.DelayNet(cards, n_num=3)
+    n = 50
+    inp = train.Inputs(torch.stack([torch.randint(0, c, (n,)) for c in cards], 1),
+                       torch.randn(n, 3), torch.zeros(n), cards)
+    emb = pipeline.embedding_features(net, inp, cols)
+    dims = [net.embs[k].embedding_dim for k in range(5)]
+    assert emb.shape == (n, sum(dims[:3]))
+    np.testing.assert_allclose(emb[:, :dims[0]], net.embs[0].weight[inp.cat[:, 0]].detach().numpy())
+
+
+@pytest.mark.slow
+def test_cv_scores_the_deployed_refit(P, monkeypatch):
+    """CV fits twice per fold and seed: early stopping on the inner holdout,
+    then a refit on ALL fold rows for the chosen epochs; the validation month
+    is never a fitting or stopping row."""
+    calls = []
+
+    class Zero(torch.nn.Module):
+        def forward(self, cat, num, **kw):
+            return torch.zeros(len(cat))
+
+    def fake_fit(spec, inp, rows, seed, es_rows=None, epochs=None):
+        calls.append((set(np.asarray(rows).tolist()), None if es_rows is None else set(es_rows.tolist()), epochs))
+        return Zero(), {"best_epoch": 3, "history": [{"es_logloss": 0.5}]}
+
+    monkeypatch.setattr(train, "fit", fake_fit)
+    cache = train.InputCache(P, {})
+    train.cv(P, train.Spec(), [42], cache)
+    folds = list(train.folds(P))
+    assert len(calls) == 2 * len(folds)
+    for (k, fit_rows, va, fd), es_call, refit_call in zip(folds, calls[::2], calls[1::2]):
+        tr, es = train.inner_split(P, fit_rows, fd)
+        assert es_call[0] == set(tr) and es_call[1] == set(es)
+        assert refit_call[0] == set(fit_rows) and refit_call[1] is None and refit_call[2] == 3
+        assert refit_call[0].isdisjoint(va)
