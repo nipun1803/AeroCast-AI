@@ -80,3 +80,45 @@ def test_test_lock_needs_committed_protocol(monkeypatch):
     monkeypatch.setattr(testlock, "protocol_is_committed", lambda: False)
     with pytest.raises(guards.LeakageError):
         testlock.require_final()
+
+
+def test_slice_table_gain_and_stability():
+    rng = np.random.default_rng(1)
+    n = 4000
+    keys = pd.DataFrame({"carrier": rng.choice(["AA", "B6"], n), "dep_hour": rng.choice(["05-09", "18-23"], n)})
+    y = (rng.random(n) < 0.2).astype(int)
+    good = np.clip(0.2 + 0.5 * (y - 0.2) + rng.normal(0, 0.1, n), 0.01, 0.99)
+    t = evaluation.slice_table(keys, y, {"logreg": rng.random(n), "mlp": good})
+    assert len(t) == 4 and set(t["dimension"]) == {"carrier", "dep_hour"}
+    assert (t["ap_gain_logreg"] == 0).all() and (t["ap_gain_mlp"] > 0.2).all()
+    assert t["n"].groupby(t["dimension"]).sum().eq(n).all() and t["stable"].all()
+
+
+def test_score_drift_is_label_free_and_detects_shift():
+    rng = np.random.default_rng(2)
+    n = 3000
+    split = np.repeat(["train", "calib", "test"], n)
+    df = pd.DataFrame({"split": split, "y": rng.integers(0, 2, 3 * n)})
+    for m in evaluation.MODELS:
+        df[m] = rng.random(3 * n)
+    df.loc[df.split == "test", "mlp"] = rng.random(n) ** 3            # shifted test scores
+    keys = pd.DataFrame({"carrier": rng.choice(list("ABC"), 3 * n), "origin": rng.choice(list("XY"), 3 * n)})
+    a = evaluation.score_drift(df, keys).set_index("input")
+    df["y"] = 1 - df["y"]
+    b = evaluation.score_drift(df, keys).set_index("input")
+    pd.testing.assert_frame_equal(a, b)                                # labels never used
+    assert a.loc["score: mlp", "test"] > 0.25 and a.loc["score: logreg", "test"] < 0.05
+
+
+def test_new_figures_render():
+    from aerocast_dl import plots
+    rng = np.random.default_rng(3)
+    y = (rng.random(2000) < 0.2).astype(int)
+    p = np.clip(0.2 + 0.4 * (y - 0.2) + rng.normal(0, 0.15, 2000), 0, 1)
+    plots.pr_curves({"A": (y, p), "B": (y, rng.random(2000))})
+    pol = pd.DataFrame([{"policy": "daily top 10%", "tp": 10, "fp": 5, "fn": 20, "tn": 65,
+                         "precision": 0.667, "recall": 0.333},
+                        {"policy": "frozen threshold", "tp": 15, "fp": 10, "fn": 15, "tn": 60,
+                         "precision": 0.6, "recall": 0.5}])
+    plots.confusion(pol, "A")
+    plots.plt.close("all")

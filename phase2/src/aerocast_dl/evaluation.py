@@ -221,7 +221,93 @@ def stage_final(P: Prepared, cache: train.InputCache, log) -> None:
     plots.reliability(curves).savefig(config.FIGURES_DIR / "reliability_test.png", dpi=200)
     head = metrics[(metrics.split == "test") & metrics.rule_selected]
     log(head[["label", "calibration", "pr_auc", "roc_auc", "brier", "ece"]].round(4).to_string(index=False))
+    sel_scores = {m: cal[f"{m}:{sel['calibrator'][m]}"] for m in MODELS}
+    test_diagnostics(P, df, sel, sel_scores, pd.DataFrame(pol), log)
     final_reschedule(P, cache, df, log)
+
+
+# ---------------------------------------------------------------------------
+# Test diagnostics: slices, rare entities, PR curves, confusion matrices, drift
+# (descriptive, computed once inside the locked final stage; they select nothing)
+# ---------------------------------------------------------------------------
+FREQ_BUCKETS = [(0, config.MIN_CAT_FREQ, f"< {config.MIN_CAT_FREQ}"), (config.MIN_CAT_FREQ, 500, "50-499"),
+                (500, 2000, "500-1,999"), (2000, np.inf, ">= 2,000")]
+HOUR_BANDS = [(0, 10, "05-09"), (10, 14, "10-13"), (14, 18, "14-17"), (18, 24, "18-23")]
+MIN_SLICE_POS = 30          # slices with fewer late flights are reported but marked unstable
+
+
+def slice_frame(P: Prepared, df: pd.DataFrame) -> pd.DataFrame:
+    """Slice keys for every row of ``df`` (Phase 1 file order). Frequencies are
+    counted on the final training rows only (labels not used)."""
+    order = np.concatenate([P.idx[s] for s in p1.SPLITS])
+    meta = P.meta.iloc[order].reset_index(drop=True)
+    assert (pd.to_datetime(meta["date"]).to_numpy() == pd.to_datetime(df["date"]).to_numpy()).all()
+    fit = P.meta.iloc[tensors.final_fit_rows(P)]
+    route = meta["origin"] + "-" + meta["dest"]
+    out = pd.DataFrame({"carrier": meta["carrier"].to_numpy(), "origin": meta["origin"].to_numpy()})
+    out["dep_hour"] = pd.cut(meta["hour"], [b[0] for b in HOUR_BANDS] + [24], right=False,
+                             labels=[b[2] for b in HOUR_BANDS]).astype(str)
+    for name, key, ref in [("dest_train_rows", meta["dest"], fit["dest"]),
+                           ("route_train_rows", route, fit["origin"] + "-" + fit["dest"])]:
+        n = key.map(ref.value_counts()).fillna(0).to_numpy()
+        out[name] = pd.cut(n, [b[0] for b in FREQ_BUCKETS] + [np.inf], right=False,
+                           labels=[b[2] for b in FREQ_BUCKETS]).astype(str)
+    return out
+
+
+def slice_table(keys: pd.DataFrame, y: np.ndarray, scores: dict) -> pd.DataFrame:
+    """AP and Brier per slice and model; AP gain of every model over LogReg."""
+    rows = []
+    for dim in keys.columns:
+        for val, idx in keys.groupby(dim).indices.items():
+            yy = y[idx]
+            r = {"dimension": dim, "slice": val, "n": len(idx), "late": int(yy.sum()),
+                 "base_rate": float(yy.mean()), "stable": int(yy.sum()) >= MIN_SLICE_POS}
+            for m, q in scores.items():
+                ok = 0 < yy.sum() < len(yy)
+                r[f"ap_{m}"] = float(average_precision_score(yy, q[idx])) if ok else float("nan")
+                r[f"brier_{m}"] = float(np.mean((q[idx] - yy) ** 2))
+            for m in scores:
+                r[f"ap_gain_{m}"] = r[f"ap_{m}"] - r["ap_logreg"]
+            rows.append(r)
+    return pd.DataFrame(rows)
+
+
+def score_drift(df: pd.DataFrame, keys: pd.DataFrame) -> pd.DataFrame:
+    """PSI (train as reference) of every model's raw score and of the embedded
+    categories. Label-free."""
+    from aerocast.drift import psi
+    tr = df["split"].eq("train").to_numpy()
+    out = []
+    for name, s in [*[(f"score: {m}", df[m]) for m in MODELS],
+                    *[(f"category: {c}", keys[c].astype("category")) for c in ("carrier", "origin")]]:
+        ref = s[tr]
+        if isinstance(s.dtype, pd.CategoricalDtype):
+            ref = ref.astype(pd.CategoricalDtype(s.cat.categories))
+        for split in ("calib", "test"):
+            out.append({"input": name, "split": split,
+                        "psi": psi(ref.reset_index(drop=True), s[df["split"].eq(split).to_numpy()]
+                                   .reset_index(drop=True))})
+    return pd.DataFrame(out).pivot(index="input", columns="split", values="psi").reset_index()
+
+
+def test_diagnostics(P: Prepared, df: pd.DataFrame, sel: dict, scores: dict, pol: pd.DataFrame, log) -> None:
+    from . import plots
+    test = df["split"].eq("test").to_numpy()
+    y = df["y"].to_numpy()
+    keys = slice_frame(P, df)
+    sl = slice_table(keys[test].reset_index(drop=True), y[test], {m: q[test] for m, q in scores.items()})
+    sl.to_csv(config.RESULTS_DIR / "test_slices.csv", index=False)
+    score_drift(df, keys).to_csv(config.RESULTS_DIR / "test_drift.csv", index=False)
+    final = sel["final_model"]
+    show = list(dict.fromkeys([final, *MODELS]))
+    plots.pr_curves({LABEL[m]: (y[test], scores[m][test]) for m in show}).savefig(
+        config.FIGURES_DIR / "pr_curves_test.png", dpi=200)
+    cm = pol[(pol.model == final) & (pol.policy.str.startswith("frozen") | pol.policy.eq("daily top 10%"))]
+    plots.confusion(cm, LABEL[final]).savefig(config.FIGURES_DIR / "confusion_test.png", dpi=200)
+    rare = sl[sl.dimension.isin(["dest_train_rows", "route_train_rows"])]
+    log(rare[["dimension", "slice", "n", "late", *[f"ap_gain_{m}" for m in ("mlp", "wide_deep")]]]
+        .round(4).to_string(index=False))
 
 
 # ---------------------------------------------------------------------------

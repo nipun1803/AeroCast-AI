@@ -18,7 +18,7 @@ from . import config, evaluation, pipeline
 
 REPORT_DIR = config.ROOT / "report"
 REPORT_FIGURES = ("cv_models", "learning_curves", "ablation_cv", "embedding_carrier",
-                  "reliability_test", "reschedule_shifts")
+                  "reliability_test", "pr_curves_test", "confusion_test", "reschedule_shifts")
 R = config.RESULTS_DIR
 NAME = {"Phase 1 LogReg": "LogReg (Phase 1)", "Phase 1 XGBoost": "XGBoost (Phase 1)",
         "mlp": "Embedding MLP", "gru": "MLP + GRU history", "wide_deep": "Wide \\& Deep",
@@ -70,6 +70,20 @@ def report_tables() -> dict[str, tuple[pd.DataFrame, int]]:
         p["Model"] = p["model"].map(lambda k: NAME[evaluation.CV_NAME[k]])
         out["policy_top10"] = (p.rename(columns={"precision": "Precision", "recall": "Recall", "lift": "Lift",
                                                  "f1": "F1"})[["Model", "Precision", "Recall", "Lift", "F1"]], 3)
+    if (R / "test_slices.csv").exists():
+        s = pd.read_csv(R / "test_slices.csv")
+        dim = {"dest_train_rows": "Dest.", "route_train_rows": "Route", "dep_hour": "Dep. hour"}
+        s = s[s.dimension.isin(dim)].copy()
+        s["Slice"] = s["dimension"].map(dim) + " " + s["slice"].astype(str) + ["" if k else "$^*$" for k in s.stable]
+        out["test_slices"] = (s.rename(columns={"n": "Flights", "ap_logreg": "AP LogReg",
+                                                "ap_gain_mlp": "$\\Delta$ MLP", "ap_gain_gru": "$\\Delta$ GRU",
+                                                "ap_gain_wide_deep": "$\\Delta$ W\\&D"})
+                              [["Slice", "Flights", "AP LogReg", "$\\Delta$ MLP", "$\\Delta$ GRU",
+                                "$\\Delta$ W\\&D"]], 3)
+    if (R / "test_drift.csv").exists():
+        d = pd.read_csv(R / "test_drift.csv")
+        out["test_drift"] = (d.rename(columns={"input": "Input", "calib": "PSI Sep–Oct", "test": "PSI Nov–Dec"})
+                             [["Input", "PSI Sep–Oct", "PSI Nov–Dec"]], 3)
     if (R / "reschedule_test.csv").exists():
         r = pd.read_csv(R / "reschedule_test.csv")
         out["reschedule"] = (r.rename(columns={"rule": "Rule", "cost": "Cost/move", "moves_per_day": "Moves/day",
