@@ -1,0 +1,23 @@
+[project]
+name = "aerocast-dl"
+version = "0.1.0"
+description = "Day-ahead flight arrival-delay risk: deep-learning and hybrid models (AML Project 21, Phase 2)"
+requires-python = ">=3.11"
+# Builds on the Phase 1 package (decision clock, features, splits, CV folds),
+# installed from ../phase1 with `pip install -e ../phase1`.
+dependencies = [
+    "aerocast",
+    "torch>=2.4",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "../phase1/src"]
+testpaths = ["tests"]
+markers = ["slow: builds the full Phase 1 feature frame (about a minute)"]
