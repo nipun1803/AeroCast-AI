@@ -179,7 +179,7 @@ def stage_final(P: Prepared, cache: train.InputCache, log) -> None:
     cal = {}
     rows, pol = [], []
     for m in MODELS:
-        for variant in ("raw", sel["calibrator"][m]):
+        for variant in dict.fromkeys(("raw", sel["calibrator"][m])):   # once if the rule kept raw
             q = calibrate.apply(variant, _pool(df, m)) if variant != "raw" else df[m].to_numpy(float)
             key = f"{m}:{variant}"
             cal[key] = q

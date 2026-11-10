@@ -121,8 +121,8 @@ def reliability(curves: dict, n_bins: int = 15):
 
 def pr_curves(curves: dict):
     """Precision-recall on test, one line per model. The first entry (the final
-    model) is drawn in the primary series colour; the others are recessive and
-    identified by direct labels at recall 0.30, with AP in the label."""
+    model) is drawn in the primary series colour; the others are recessive. A
+    label column ranked by AP identifies the models."""
     from sklearn.metrics import average_precision_score, precision_recall_curve
     fig, ax = plt.subplots(figsize=(5.2, 3.9))
     base = None
@@ -134,16 +134,16 @@ def pr_curves(curves: dict):
         first = k == 0
         ax.plot(rec, prec, color=SERIES[0] if first else REFERENCE, lw=2.2 if first else 1.0,
                 alpha=1 if first else 0.8, zorder=3 if first else 2)
-        i = int(np.argmin(np.abs(rec - 0.30)))
-        labelled.append((prec[i], f"{name}  AP {ap:.3f}", first))
-    # stack labels at the right margin in the order of their precision at recall 0.30
-    for j, (py, text, first) in enumerate(sorted(labelled, reverse=True)):
+        labelled.append((ap, f"{name}  AP {ap:.3f}", first))
+    # the curves overlap almost everywhere, so identity is carried by a ranked label column
+    # (highest AP first); the final model is the bold label and the only coloured line
+    for j, (_, text, first) in enumerate(sorted(labelled, reverse=True)):
         ax.annotate(text, (1.02, 0.92 - 0.075 * j), xycoords=("axes fraction", "axes fraction"),
                     fontsize=7.5, color=TEXT if first else TEXT_2,
                     fontweight="bold" if first else "normal", va="center")
     ax.axhline(base, color=REFERENCE, lw=1, ls="--")
-    ax.annotate(f"base rate {base:.3f}", (0.98, base), xytext=(0, 3), textcoords="offset points",
-                ha="right", fontsize=7, color=TEXT_2)
+    ax.annotate(f"base rate {base:.3f}", (0.5, base), xytext=(0, -10), textcoords="offset points",
+                ha="center", fontsize=7, color=TEXT_2)
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
     ax.set_xlabel("recall")
