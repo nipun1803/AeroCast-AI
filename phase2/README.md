@@ -1,6 +1,6 @@
 # AeroCast-AI Phase 2: Deep Learning and Hybrid
 
-**Team T49 · AML Project 21 · Phase 2 (deep learning)**. Status: **protocol fixed; network inputs built (Step 2); no model trained yet**.
+**Team T49 · AML Project 21 · Phase 2 (deep learning)**. Status: **protocol fixed; network inputs (Step 2) and causal GRU sequences (Step 4, inputs only) built; no model trained yet**.
 
 Phase 2 adds deep-learning models to the Phase 1 setup ([`../phase1/`](../phase1/)) and keeps everything else identical, so that the comparison is fair:
 
@@ -23,11 +23,13 @@ From `phase2/`, with the shared venv (`../.venv`) active and `aerocast` installe
 python -B -m pytest -q -p no:cacheprovider        # leakage and alignment tests
 python -B scripts/run_phase2.py                    # writes results/
 python -B -m jupyter nbconvert --to notebook --execute --inplace \
-  --ExecutePreprocessor.kernel_name=aerocast notebooks/05_dl_data.ipynb
+  --ExecutePreprocessor.kernel_name=aerocast \
+  notebooks/05_dl_data.ipynb notebooks/07_temporal_hybrid.ipynb
 ```
 
 | | |
 |---|---|
 | [notebooks/05_dl_data.ipynb](notebooks/05_dl_data.ipynb) | network inputs, fitting clock, cold-start coverage |
-| `src/aerocast_dl/` | `config` (Phase 2 settings), `guards` (leakage assertions), `tensors` (train-only encoders) |
-| `results/` | `data_summary.json`, `cold_start.csv` |
+| [notebooks/07_temporal_hybrid.ipynb](notebooks/07_temporal_hybrid.ipynb) | Part A: causal history windows, decision clock, equality with Phase 1 |
+| `src/aerocast_dl/` | `config` (Phase 2 settings), `guards` (leakage assertions), `tensors` (train-only encoders), `sequences` (causal daily history windows), `models` (GRU encoder) |
+| `results/` | `data_summary.json`, `cold_start.csv`, `sequence_summary.json` |
