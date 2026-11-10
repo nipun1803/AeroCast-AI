@@ -64,6 +64,26 @@ def stage_final_fit(P: Prepared, cache: train.InputCache, log) -> None:
     log("final emb_xgb: Phase 1 XGBoost + final MLP embeddings, one per seed (separate process)")
     scores["emb_xgb"] = np.mean(pipeline.run_xgb_jobs(jobs), axis=0)
     write_predictions(P, scores)
+    embedding_figures(P, nets_mlp[0], inp_mlp)
+
+
+def embedding_figures(P: Prepared, net, inp: train.Inputs) -> None:
+    """PCA maps of the final MLP's carrier and destination embeddings (seed 42).
+    Destinations: only the 20 busiest are labelled. Descriptive only."""
+    from . import plots
+    config.FIGURES_DIR.mkdir(exist_ok=True)
+    rows = tensors.final_fit_rows(P)
+    for k, col in enumerate(P.cat_cols):
+        if col not in ("carrier", "dest"):
+            continue
+        vocab = inp.encoder.vocabs_[col]
+        names = sorted(vocab.index_, key=vocab.index_.get)            # index 1..n
+        vecs = net.embs[k].weight.detach().numpy()[1:]               # drop the shared UNK row
+        busy = P.meta[col].iloc[rows].value_counts()
+        label = None if col == "carrier" else [n in set(busy.index[:20]) for n in names]
+        title = {"carrier": "Learned carrier embeddings", "dest": "Learned destination embeddings"}[col]
+        plots.embedding_map(vecs, names, title, label).savefig(
+            config.FIGURES_DIR / f"embedding_{col}.png", dpi=200)
 
 
 def write_predictions(P: Prepared, dl_scores: dict) -> None:
@@ -193,6 +213,12 @@ def stage_final(P: Prepared, cache: train.InputCache, log) -> None:
     calibrated.insert(0, "date", dates[test])
     calibrated.to_csv(config.RESULTS_DIR / "test_calibrated_scores.csv.gz", index=False,
                       compression="gzip")
+    from . import plots
+    config.FIGURES_DIR.mkdir(exist_ok=True)
+    final = sel["final_model"]
+    show = list(dict.fromkeys([final, "logreg", "wide_deep"]))
+    curves = {LABEL[m]: (y[test], cal[f"{m}:{sel['calibrator'][m]}"][test]) for m in show}
+    plots.reliability(curves).savefig(config.FIGURES_DIR / "reliability_test.png", dpi=200)
     head = metrics[(metrics.split == "test") & metrics.rule_selected]
     log(head[["label", "calibration", "pr_auc", "roc_auc", "brier", "ece"]].round(4).to_string(index=False))
     final_reschedule(P, cache, df, log)
@@ -234,6 +260,9 @@ def final_reschedule(P: Prepared, cache: train.InputCache, df: pd.DataFrame, log
     moves, summary = reschedule.apply_test(P, cache, df, r["model"], sel["calibrator"][r["model"]],
                                            reschedule.build_context(P.raw), r["params"])
     moves.to_csv(config.RESULTS_DIR / "reschedule_test_moves.csv", index=False)
+    if len(moves):
+        from . import plots
+        plots.reschedule_shifts(moves).savefig(config.FIGURES_DIR / "reschedule_shifts.png", dpi=200)
     summary.to_csv(config.RESULTS_DIR / "reschedule_test.csv", index=False)
     log(summary[["rule", "cost", "moves_per_day", "predicted_delays_avoided_per_day",
                  "avoided_per_move", "net_benefit"]].round(3).to_string(index=False))

@@ -1,0 +1,50 @@
+{
+  "cv_pr_auc": {
+    "logreg": 0.4714072036489442,
+    "xgboost": 0.4499845534085278,
+    "mlp": 0.4654984857478833,
+    "gru": 0.4671596985309734,
+    "wide_deep": 0.4690833278040511,
+    "emb_xgb": 0.4504653227728237
+  },
+  "best_by_cv": "logreg",
+  "within_0.005": [
+    "logreg",
+    "gru",
+    "wide_deep"
+  ],
+  "complexity": {
+    "logreg": 154,
+    "xgboost": 756,
+    "mlp": 27501,
+    "gru": 37101,
+    "wide_deep": 37255,
+    "emb_xgb": 28257
+  },
+  "final_model": "logreg",
+  "rule": "highest mean rolling-CV AP as deployed; within 0.005, fewer parameters",
+  "calibrator": {
+    "logreg": "rolling_platt28",
+    "xgboost": "raw",
+    "mlp": "rolling_platt28",
+    "gru": "rolling_platt28",
+    "wide_deep": "rolling_platt28",
+    "emb_xgb": "rolling_temperature28"
+  },
+  "frozen_threshold": {
+    "logreg": 0.5079078746137874,
+    "xgboost": 0.4838375,
+    "mlp": 0.6263035515367092,
+    "gru": 0.6881037189386812,
+    "wide_deep": 0.4765344520540711,
+    "emb_xgb": 0.4056107847400667
+  },
+  "reschedule": {
+    "model": "logreg",
+    "params": {
+      "window": 2,
+      "delta": 0.02
+    },
+    "move_cost": 0.02
+  }
+}

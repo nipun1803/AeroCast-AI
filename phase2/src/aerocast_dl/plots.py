@@ -80,15 +80,18 @@ def learning_curves(curves: dict):
     return fig
 
 
-def embedding_map(vecs: np.ndarray, names: list[str], title: str):
-    """2-D PCA of one embedding table, each point labelled."""
+def embedding_map(vecs: np.ndarray, names: list[str], title: str, label=None):
+    """2-D PCA of one embedding table; points labelled (all, or where ``label``)."""
     x = vecs - vecs.mean(axis=0)
     u, s, vt = np.linalg.svd(x, full_matrices=False)
     xy = x @ vt[:2].T
     expl = s[:2] ** 2 / (s ** 2).sum()
     fig, ax = plt.subplots(figsize=(4.2, 3.6))
     ax.scatter(xy[:, 0], xy[:, 1], s=30, color=SERIES[0], edgecolor="white", lw=1)
-    for (a, b), n in zip(xy, names):
+    label = np.ones(len(names), bool) if label is None else np.asarray(label)
+    for (a, b), n, show in zip(xy, names, label):
+        if not show:
+            continue
         ax.annotate(n, (a, b), xytext=(3, 3), textcoords="offset points", fontsize=7, color=TEXT)
     ax.set_xlabel(f"PC1 ({expl[0]:.0%} of variance)")
     ax.set_ylabel(f"PC2 ({expl[1]:.0%})")
