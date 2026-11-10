@@ -63,3 +63,9 @@ Amendments made before the freeze must cite CV or correctness evidence and are c
 | Date | Change | Reason |
 |---|---|---|
 | 2026-11-10 | Protocol created | — |
+| 2026-11-10 | **Search seed:** the hyperparameter search scores each configuration with one seed (42); only the best configuration of each family is re-scored with the 5-seed ensemble, which is what the selection rule uses | Compute: a 5-seed search costs 5× for no change in what is selected (one seed already ranks configurations; the ensemble is what is compared) |
+| 2026-11-10 | **Early-stopping criterion:** inner-holdout log loss (a proper scoring rule), at most 40 epochs, patience 4 epochs | The protocol named the holdout but not the criterion |
+| 2026-11-10 | **"As deployed" for networks:** in CV, each fold's network is early-stopped on its inner holdout and then scored once on the validation month; the final refit uses the fixed epoch count of §3 | Clarifies §4 for networks; the validation month never chooses an epoch |
+| 2026-11-10 | **Hybrid deep part:** the Wide & Deep search keeps the deep architecture of the better of MLP and GRU model (5-seed CV) and searches learning rate, weight decay and the wide part's learning-rate scale | Fixes the search space before the search |
+| 2026-11-10 | **Secondary hybrid:** XGBoost with the Phase 1 configuration (`../phase1/results/summary.json`, `xgb_params`) plus the MLP's carrier, origin and destination embeddings; trained in a separate process | Torch and XGBoost OpenMP runtimes crash in one process on macOS |
+| 2026-11-10 | **Search grids** fixed in `src/aerocast_dl/config.py` (`MLP_GRID`, `GRU_GRID`, `HYBRID_GRID`) | Written before the search runs |
