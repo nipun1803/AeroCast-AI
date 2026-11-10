@@ -5,15 +5,27 @@ Stages are added step by step (docs/development_protocol.md):
              cold-start coverage of the category vocabularies
   sequences  Step 4: causal daily history windows for the GRU, checked
              against the Phase 1 history features
+  mlp        Step 3: embedding-MLP search (one seed) + 5-seed ensemble CV
+  gru        Step 4: GRU model search on top of the selected MLP
+  hybrid     Step 5: Wide & Deep (LogReg wide part) search
+  emb_xgb    Step 5: MLP embeddings -> Phase 1 XGBoost (separate process)
+  ablation   Step 6: ablations, 5-seed CV
+  figures    CV figures (model comparison, ablations, learning curves)
+  final_fit  Step 7: refit every family on all training rows (no labels used to score)
+  calibrate  Step 7: Sep -> Oct calibrator rule, frozen thresholds, final-model rule
+  reschedule Step 8: what-if rescheduling rule tuned on Sep-Oct
+  final      Steps 7-8: THE ONE TEST RUN (only with --final): test metrics, policies,
+             bootstrap, rescheduling on Nov-Dec
 
 Test labels are not read by any stage before the final evaluation stage.
 
-Usage:  python scripts/run_phase2.py
+Usage:  python scripts/run_phase2.py [--stages data sequences mlp ...]
 Outputs: results/*.csv|json
 """
 from __future__ import annotations
 
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -30,7 +42,13 @@ from aerocast import config as p1  # noqa: E402
 from aerocast import features  # noqa: E402
 from aerocast import pipeline as p1_pipeline  # noqa: E402
 
-from aerocast_dl import config, sequences, tensors  # noqa: E402
+from aerocast_dl import config, sequences, tensors, train  # noqa: E402
+from aerocast_dl import evaluation, testlock  # noqa: E402
+from aerocast_dl import pipeline as dl_pipeline  # noqa: E402
+
+STAGES = ["data", "sequences", "mlp", "gru", "hybrid", "emb_xgb", "ablation", "figures",
+          "final_fit", "calibrate", "reschedule", "final"]
+EVAL_STAGES = {"final_fit", "calibrate", "reschedule", "final"}
 
 
 def log(msg):
@@ -89,19 +107,45 @@ def stage_sequences(P) -> dict:
     return summary
 
 
-def main():
+def main(stages):
     config.RESULTS_DIR.mkdir(exist_ok=True)
     log(f"Phase 1 features and splits (decision clock {p1.DECISION_HOUR}:00 on D-1)")
     P = p1_pipeline.prepare()
-    log("stage data: encoder on the final training rows, cold-start coverage")
-    summary = stage_data(P)
-    log(json.dumps({k: v for k, v in summary.items() if k != "missing_indicator_columns"}))
-    log("stage sequences: causal history windows, equality with Phase 1 history")
-    seq = stage_sequences(P)
-    log(json.dumps({n: {k: v[k] for k in ("entities", "window_shape", "mismatches_vs_phase1_14d")}
-                    for n, v in seq["entity_types"].items()}))
+    if "data" in stages:
+        log("stage data: encoder on the final training rows, cold-start coverage")
+        summary = stage_data(P)
+        log(json.dumps({k: v for k, v in summary.items() if k != "missing_indicator_columns"}))
+    if "sequences" in stages:
+        log("stage sequences: causal history windows, equality with Phase 1 history")
+        seq = stage_sequences(P)
+        log(json.dumps({n: {k: v[k] for k in ("entities", "window_shape", "mismatches_vs_phase1_14d")}
+                        for n, v in seq["entity_types"].items()}))
+    cv_stages = [s for s in stages if s in STAGES[2:]]
+    if cv_stages:
+        cache = train.InputCache(P, sequences.default_sequences(P))
+        for s in cv_stages:
+            t0 = time.time()
+            log(f"stage {s}")
+            module = evaluation if s in EVAL_STAGES else dl_pipeline
+            getattr(module, f"stage_{s}")(P, cache, log)
+            log(f"stage {s} done in {(time.time() - t0) / 60:.1f} min")
     log("done")
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--stages", nargs="+", default=[s for s in STAGES if s != "final"],
+                    choices=STAGES)
+    ap.add_argument("--final", action="store_true",
+                    help="run the one-time test evaluation (reads Nov-Dec labels)")
+    args = ap.parse_args()
+    if args.final:
+        os.environ[testlock.ENV] = "1"          # this process only
+        stages = ["final"]
+    else:
+        os.environ.pop(testlock.ENV, None)
+        if "final" in args.stages:
+            ap.error("the test evaluation runs only with --final")
+        stages = args.stages
+    main(stages)
