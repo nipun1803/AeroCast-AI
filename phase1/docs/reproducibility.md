@@ -19,11 +19,11 @@ nbconvert==7.17.2
 ipykernel==7.4.0
 ```
 
-Install: `python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt && .venv/bin/pip install -e .`, place `flights.csv` in `data/raw/`, and register the kernel `.venv/bin/python -m ipykernel install --sys-prefix --name aerocast`. All randomness is seeded (`config.SEED = 42`).
+Install (from `phase1/`; the venv is shared at the repository root): `python3.12 -m venv ../.venv && ../.venv/bin/pip install -r requirements.txt && ../.venv/bin/pip install -e .`, place `flights.csv` in `data/raw/`, and register the kernel `../.venv/bin/python -m ipykernel install --sys-prefix --name aerocast`. All randomness is seeded (`config.SEED = 42`).
 
 ## Verified staged reproduction
 
-With `.venv` activated, run from the repository root:
+With `../.venv` activated, run from `phase1/`:
 
 ```bash
 python -B -m pytest -q -p no:cacheprovider
@@ -61,4 +61,4 @@ For explanation-only changes, model training and notebook execution are unnecess
 
 ## macOS note
 
-If `import aerocast` fails inside the venv, macOS may have flagged the `.pth` files as hidden (common in iCloud-synced folders) and Python skips hidden `.pth` files: `chflags nohidden .venv/lib/python3.12/site-packages/*.pth`. The script and notebooks add `src/` to `sys.path` themselves, so they work either way.
+If `import aerocast` fails inside the venv, macOS may have flagged the `.pth` files as hidden (common in iCloud-synced folders) and Python skips hidden `.pth` files: `chflags nohidden ../.venv/lib/python3.12/site-packages/*.pth`. The script and notebooks add `src/` to `sys.path` themselves, so they work either way.

@@ -9,7 +9,8 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
-PY="${PY:-.venv/bin/python}"
+# The venv is shared by phase1/ and phase2/ and lives at the repository root.
+PY="${PY:-../.venv/bin/python}"
 NB_TIMEOUT=3600
 t0=$(date +%s)
 step() { echo; echo "=== [$(( $(date +%s) - t0 ))s] $*"; }

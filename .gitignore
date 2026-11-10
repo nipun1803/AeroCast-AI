@@ -1,5 +1,8 @@
 # --- environments & caches
-.venv/
+# One virtual environment at the repository root, shared by phase1/ and phase2/.
+# It may be a symlink to a venv outside iCloud (iCloud evicts venv files).
+.venv
+.venv.*/
 __pycache__/
 *.pyc
 *.egg-info/
@@ -9,15 +12,23 @@ __pycache__/
 *.log
 
 # --- data
-# Raw dataset (~43 MB) is re-downloadable from Kaggle; place it in data/raw/.
-data/raw/*.csv
+# Raw dataset (~43 MB) is re-downloadable from Kaggle; place it in phase1/data/raw/.
+# Phase 2 reads the same file through aerocast.config.RAW_CSV (no second copy).
+phase1/data/raw/*.csv
+# Phase 2 derived tensors / sequence caches (rebuilt from the raw CSV).
+phase2/data/cache/
 
 # --- results
-# results/ IS committed, including results/predictions.csv.gz (~6 MB): it is the
-# audit trail for every reported number and lets notebook 04 run without
-# re-training. Regenerate everything with `python scripts/run_phase1.py`.
+# phase1/results/ IS committed, including results/predictions.csv.gz (~6 MB): it
+# is the audit trail for every reported number and lets notebook 04 run without
+# re-training. Regenerate everything with `python scripts/run_phase1.py` from phase1/.
+
+# --- model weights
+# Trained PyTorch checkpoints are reproducible from the seeded pipeline.
+*.pt
+*.pth
 
 # --- report
-# Earlier 22-page version of the report (kept locally as a viva supplement;
-# compiles on its own: cd report/long_version && tectonic -X compile main.tex).
-report/long_version/
+# Earlier 22-page version of the Phase 1 report (kept locally as a viva supplement;
+# compiles on its own: cd phase1/report/long_version && tectonic -X compile main.tex).
+phase1/report/long_version/
