@@ -1,0 +1,23 @@
+\begin{tabular}{lrrrr}
+\toprule
+Ablation & CV AP & $\Delta$ & Folds up & Seed SD \\
+\midrule
+MLP: no early stopping & 0.4308 & $-$0.0347 & 0 & 0.0065 \\
+MLP: $-$ entity history & 0.4485 & $-$0.0170 & 0 & 0.0038 \\
+GRU: replaces hand-crafted history & 0.4525 & $-$0.0146 & 0 & 0.0055 \\
+MLP: $-$ congestion features & 0.4557 & $-$0.0098 & 0 & 0.0053 \\
+MLP: $-$ day-level history & 0.4559 & $-$0.0096 & 1 & 0.0036 \\
+MLP: embedding width 2 & 0.4619 & $-$0.0036 & 0 & 0.0058 \\
+MLP: $-$ schedule features & 0.4631 & $-$0.0024 & 2 & 0.0035 \\
+MLP: embedding width 16 & 0.4634 & $-$0.0021 & 1 & 0.0040 \\
+MLP: embedding width 4 & 0.4636 & $-$0.0019 & 0 & 0.0042 \\
+MLP: embedding width 8 & 0.4638 & $-$0.0017 & 1 & 0.0037 \\
+GRU: window 14 days & 0.4661 & $-$0.0011 & 1 & 0.0048 \\
+MLP: one-hot instead of embeddings & 0.4644 & $-$0.0011 & 1 & 0.0042 \\
+GRU: window 7 days & 0.4666 & $-$0.0006 & 1 & 0.0056 \\
+MLP: + tail / flight / origin-hour IDs & 0.4658 & 0.0003 & 2 & 0.0036 \\
+MLP: no dropout or weight decay & 0.4660 & 0.0005 & 2 & 0.0044 \\
+Wide \& Deep: without embeddings & 0.4704 & 0.0013 & 3 & 0.0028 \\
+Wide \& Deep: without GRU & 0.4717 & 0.0026 & 3 & 0.0022 \\
+\bottomrule
+\end{tabular}

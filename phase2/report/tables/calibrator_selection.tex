@@ -1,0 +1,12 @@
+\begin{tabular}{lrrrrrr}
+\toprule
+Oct ECE & LogReg & XGBoost & MLP & MLP + GRU & W\&D & Emb.$\rightarrow$XGB \\
+\midrule
+none (raw) & 0.063 & 0.023 & 0.038 & 0.064 & 0.058 & 0.031 \\
+Platt (Sep) & 0.033 & 0.043 & 0.040 & 0.029 & 0.035 & 0.042 \\
+isotonic (Sep) & 0.034 & 0.043 & 0.041 & 0.030 & 0.035 & 0.043 \\
+temperature (Sep) & 0.033 & 0.032 & 0.037 & 0.031 & 0.036 & 0.031 \\
+rolling Platt, 28 d & 0.021 & 0.031 & 0.026 & 0.020 & 0.023 & 0.032 \\
+rolling temperature, 28 d & 0.032 & 0.024 & 0.029 & 0.030 & 0.035 & 0.025 \\
+\bottomrule
+\end{tabular}
