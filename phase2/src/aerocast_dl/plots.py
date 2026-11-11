@@ -46,10 +46,14 @@ def ablation(tbl: pd.DataFrame):
     cols = [GAIN if d > 0 else LOSS for d in tbl["delta"]]
     ax.barh(y, tbl["delta"], color=cols, height=0.6)
     ax.errorbar(tbl["delta"], y, xerr=tbl["seed_sd"], fmt="none", ecolor=TEXT_2, lw=0.8, capsize=2)
-    for yi, d in zip(y, tbl["delta"]):
-        ax.annotate(f"{d:+.3f}", (d, yi), xytext=(4 if d >= 0 else -4, 0), textcoords="offset points",
+    for yi, d, sd in zip(y, tbl["delta"], tbl["seed_sd"]):   # label beyond the whisker
+        end = d + sd if d >= 0 else d - sd
+        ax.annotate(f"{d:+.3f}", (end, yi), xytext=(3 if d >= 0 else -3, 0), textcoords="offset points",
                     ha="left" if d >= 0 else "right", va="center", fontsize=7, color=TEXT)
     ax.axvline(0, color=TEXT_2, lw=0.8)
+    lo = min(0, (tbl["delta"] - tbl["seed_sd"]).min())
+    hi = max(0, (tbl["delta"] + tbl["seed_sd"]).max())
+    ax.set_xlim(lo - 0.25 * (hi - lo), hi + 0.2 * (hi - lo))      # room for the value labels
     ax.set_yticks(y, tbl["label"])
     ax.set_xlabel("Δ mean CV AP vs base configuration (whisker: mean seed SD)")
     ax.set_title("Ablations (5-seed ensembles, rolling CV)", loc="left")
@@ -108,8 +112,10 @@ def reliability(curves: dict, n_bins: int = 15):
         t = reliability_table(y, p, n_bins)
         t = t[t["n"] >= 50]
         ax.plot(t["mean_pred"], t["frac_pos"], color=SERIES[k], lw=2, marker="o", ms=4)
-        ax.annotate(name, (t["mean_pred"].iloc[-1], t["frac_pos"].iloc[-1]), xytext=(4, 0),
-                    textcoords="offset points", fontsize=7.5, color=TEXT, va="center")
+        # end-of-line labels, staggered vertically so overlapping curves stay legible
+        ax.annotate(name, (t["mean_pred"].iloc[-1], t["frac_pos"].iloc[-1]),
+                    xytext=(6, 10 - 12 * k), textcoords="offset points", fontsize=7.5, color=TEXT,
+                    va="center", arrowprops=dict(arrowstyle="-", color=SERIES[k], lw=0.6))
     ax.set_xlabel("mean predicted risk")
     ax.set_ylabel("observed delay rate")
     ax.set_xlim(0, 1)

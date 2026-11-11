@@ -20,9 +20,12 @@ REPORT_DIR = config.ROOT / "report"
 REPORT_FIGURES = ("cv_models", "learning_curves", "ablation_cv", "embedding_carrier",
                   "reliability_test", "pr_curves_test", "confusion_test", "reschedule_shifts")
 R = config.RESULTS_DIR
+CALIB = {"raw": "none (raw)", "platt": "Platt (Sep)", "isotonic": "isotonic (Sep)",
+         "temperature": "temperature (Sep)", "rolling_platt28": "rolling Platt, 28 d",
+         "rolling_temperature28": "rolling temperature, 28 d"}
 NAME = {"Phase 1 LogReg": "LogReg (Phase 1)", "Phase 1 XGBoost": "XGBoost (Phase 1)",
-        "mlp": "Embedding MLP", "gru": "MLP + GRU history", "wide_deep": "Wide \\& Deep",
-        "emb_xgb": "Embeddings $\\rightarrow$ XGBoost"}
+        "mlp": "Embedding MLP", "gru": "MLP + GRU history", "wide_deep": "Wide & Deep",
+        "emb_xgb": "Embeddings → XGBoost"}   # cells are escaped by to_booktabs
 
 
 def _cv() -> pd.DataFrame:
@@ -45,7 +48,8 @@ def report_tables() -> dict[str, tuple[pd.DataFrame, int]]:
     if (R / "diagnostics.csv").exists():
         d = pd.read_csv(R / "diagnostics.csv")
         out["diagnostics"] = (d.rename(columns={"diagnostic": "", "label": "Run", "cv_pr_auc": "CV AP",
-                                                "best_epochs": "Best epochs"})[["", "Run", "CV AP", "Best epochs"]], 4)
+                                                "best_epochs": "Best epochs"}).replace({"Best epochs": {"///": "--"}})
+                           [["", "Run", "CV AP", "Best epochs"]], 4)
     if (R / "ablation.csv").exists():
         a = pd.read_csv(R / "ablation.csv").sort_values("delta")
         out["ablation"] = (a.rename(columns={"label": "Ablation", "cv": "CV AP", "delta": "$\\Delta$",
@@ -55,12 +59,17 @@ def report_tables() -> dict[str, tuple[pd.DataFrame, int]]:
         c = pd.read_csv(R / "calibrator_selection.csv")
         piv = c.pivot(index="calibrator", columns="model", values="check_ece")
         piv = piv[[m for m in evaluation.MODELS if m in piv.columns]]
-        piv.columns = [NAME[evaluation.CV_NAME[m]] for m in piv.columns]
-        out["calibrator_selection"] = (piv.reset_index().rename(columns={"calibrator": "Oct ECE"}), 3)
+        short = {"logreg": "LogReg", "xgboost": "XGBoost", "mlp": "MLP", "gru": "MLP + GRU",
+                 "wide_deep": "W\\&D", "emb_xgb": "Emb.$\\rightarrow$XGB"}
+        piv.columns = [short[m] for m in piv.columns]
+        piv = piv.reindex([c for c in CALIB if c in piv.index])
+        piv.index = [CALIB[c] for c in piv.index]
+        out["calibrator_selection"] = (piv.rename_axis("Oct ECE").reset_index(), 3)
     if (R / "test_metrics.csv").exists():
         m = pd.read_csv(R / "test_metrics.csv")
         h = m[(m.split == "test") & m.rule_selected].copy()
         h["Model"] = h["model"].map(lambda k: NAME[evaluation.CV_NAME[k]])
+        h["calibration"] = h["calibration"].map(CALIB)
         out["results_test"] = (h.rename(columns={"calibration": "Calibration", "pr_auc": "AP", "roc_auc": "ROC",
                                                  "brier": "Brier", "ece": "ECE", "precision_at_thr": "P@thr",
                                                  "recall_at_thr": "R@thr"})
@@ -72,24 +81,29 @@ def report_tables() -> dict[str, tuple[pd.DataFrame, int]]:
                                                  "f1": "F1"})[["Model", "Precision", "Recall", "Lift", "F1"]], 3)
     if (R / "test_slices.csv").exists():
         s = pd.read_csv(R / "test_slices.csv")
-        dim = {"dest_train_rows": "Dest.", "route_train_rows": "Route", "dep_hour": "Dep. hour"}
-        s = s[s.dimension.isin(dim)].copy()
-        s["Slice"] = s["dimension"].map(dim) + " " + s["slice"].astype(str) + ["" if k else "$^*$" for k in s.stable]
+        dims = [("dep_hour", "Dep. hour", ["05-09", "10-13", "14-17", "18-23"]),
+                ("dest_train_rows", "Dest. rows", ["< 50", "50-499", "500-1,999", ">= 2,000"]),
+                ("route_train_rows", "Route rows", ["< 50", "50-499", "500-1,999", ">= 2,000"])]
+        parts = []
+        for d, lab, order in dims:
+            t = s[s.dimension == d].set_index("slice").loc[order].reset_index()
+            t["Slice"] = [f"{lab} {v.replace('>= ', '≥ ').replace('-', '--')}" + ("" if k else "$^*$")
+                          for v, k in zip(t["slice"], t["stable"])]
+            parts.append(t)
+        s = pd.concat(parts, ignore_index=True)
         out["test_slices"] = (s.rename(columns={"n": "Flights", "ap_logreg": "AP LogReg",
                                                 "ap_gain_mlp": "$\\Delta$ MLP", "ap_gain_gru": "$\\Delta$ GRU",
-                                                "ap_gain_wide_deep": "$\\Delta$ W\\&D"})
+                                                "ap_gain_wide_deep": "$\\Delta$ W\\&D",
+                                                "ap_gain_xgboost": "$\\Delta$ XGB"})
                               [["Slice", "Flights", "AP LogReg", "$\\Delta$ MLP", "$\\Delta$ GRU",
-                                "$\\Delta$ W\\&D"]], 3)
-    if (R / "test_drift.csv").exists():
-        d = pd.read_csv(R / "test_drift.csv")
-        out["test_drift"] = (d.rename(columns={"input": "Input", "calib": "PSI Sep–Oct", "test": "PSI Nov–Dec"})
-                             [["Input", "PSI Sep–Oct", "PSI Nov–Dec"]], 3)
+                                "$\\Delta$ W\\&D", "$\\Delta$ XGB"]], 3)
     if (R / "reschedule_test.csv").exists():
         r = pd.read_csv(R / "reschedule_test.csv")
-        out["reschedule"] = (r.rename(columns={"rule": "Rule", "cost": "Cost/move", "moves_per_day": "Moves/day",
-                                               "predicted_delays_avoided_per_day": "Avoided/day",
-                                               "avoided_per_move": "Avoided/move", "net_benefit": "Net"})
-                             [["Rule", "Cost/move", "Moves/day", "Avoided/day", "Avoided/move", "Net"]], 3)
+        r["rule"] = r["rule"].map(lambda x: "frozen rule" if x.startswith("frozen") else "naive, −1 h")
+        out["reschedule"] = (r.rename(columns={"rule": "Rule", "cost": "Cost", "moves_per_day": "Moves/d",
+                                               "predicted_delays_avoided_per_day": "Avoided/d",
+                                               "avoided_per_move": "Per move", "net_benefit": "Net"})
+                             [["Rule", "Cost", "Moves/d", "Avoided/d", "Per move", "Net"]], 2)
     return out
 
 
