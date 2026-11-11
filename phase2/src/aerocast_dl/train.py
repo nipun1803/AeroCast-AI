@@ -31,6 +31,9 @@ from aerocast.pipeline import Prepared
 from . import config, guards, models, sequences, tensors
 
 torch.set_num_threads(config.N_THREADS)
+# Protocol §3. Added after the runs; checked to leave a Wide & Deep fit (GRU, embeddings,
+# wide part) bit-identical on CPU, so no reported number depends on it (change log).
+torch.use_deterministic_algorithms(True)
 
 
 # ---------------------------------------------------------------------------
