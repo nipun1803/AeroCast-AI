@@ -72,6 +72,11 @@ for a in ["wd_no_gru", "gru_instead_of_history"]:
 # --- calibration (selected on October)
 calsel = csv("calibrator_selection.csv")
 add("Oct ECE LogReg raw", pick(calsel, model="logreg", calibrator="raw").check_ece)
+p1h = pd.read_csv(ROOT.parent / "phase1" / "results" / "headline_test.csv").set_index("variant")
+add("Phase 1 deployed LogReg test AP", p1h.loc["logreg_rule_selected", "pr_auc"])
+add("Phase 1 deployed LogReg test ECE", p1h.loc["logreg_rule_selected", "ece"])
+assert abs(p1h.loc["logreg_rolling28", "pr_auc"] - pd.read_csv(R / "test_metrics.csv").query(
+    "model == 'logreg' and split == 'test' and rule_selected").pr_auc.iloc[0]) < 1e-9   # same scores
 add("Oct ECE LogReg chosen", pick(calsel, model="logreg", calibrator=sel["calibrator"]["logreg"]).check_ece)
 assert sel["final_model"] == "logreg" and sel["reschedule"]["params"] == {"window": 2, "delta": 0.02}
 p1sum = json.loads((ROOT.parent / "phase1" / "results" / "summary.json").read_text())
