@@ -12,11 +12,14 @@ import subprocess
 
 from . import config, guards
 
-PROTOCOL_FILES = ["docs/development_protocol.md", "docs/leakage_safeguards.md"]
+PROTOCOL_FILES = ["docs/06_rules_and_limitations.md", "docs/01_inputs_and_leakage.md"]
 ENV = "AEROCAST_FINAL"
 
 
 def protocol_is_committed() -> bool:
+    # a missing file would show as clean in `git status`, so require that every rules file exists
+    if not all((config.ROOT / f).is_file() for f in PROTOCOL_FILES):
+        return False
     res = subprocess.run(["git", "status", "--porcelain", "--", *PROTOCOL_FILES],
                          cwd=config.ROOT, capture_output=True, text=True, check=True)
     return res.stdout.strip() == ""

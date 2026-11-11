@@ -75,6 +75,10 @@ def test_test_lock(monkeypatch):
         evaluation.load_predictions(include_test=True)
 
 
+def test_test_lock_watches_existing_rules_files():
+    assert all((testlock.config.ROOT / f).is_file() for f in testlock.PROTOCOL_FILES)
+
+
 def test_test_lock_needs_committed_protocol(monkeypatch):
     monkeypatch.setenv(testlock.ENV, "1")
     monkeypatch.setattr(testlock, "protocol_is_committed", lambda: False)
