@@ -10,9 +10,9 @@ Predict whether a flight arrives **≥ 15 min late** using only information avai
 - **Data:** [`nycflights13`](https://www.kaggle.com/datasets/mahoora00135/flights), 336,776 departures from EWR, JFK and LGA in 2013. No weather: observed weather would leak at the decision clock ([limitations](docs/limitations_and_assumptions.md)).
 - **Split:** chronological, train Jan 8–Aug · calibration Sep–Oct · test Nov–Dec, with rolling-origin CV inside train. One year and three origins cannot establish cross-year generalisation.
 - **Models:** logistic regression and XGBoost, against two references: the base-rate *prior* and a *route-history* heuristic.
-- **Final model:** `LogReg (rolling Platt 28d, rule-selected)`, chosen by higher development CV AP (0.4714 vs 0.4500 for fixed-tree XGBoost). The 95% day-block bootstrap interval for test AP, XGBoost − LogReg, is [−0.015, +0.027]; it includes zero, so it establishes neither a difference nor equivalence.
+- **Final model:** `LogReg (Platt, rule-selected)`: logistic regression, chosen by higher development CV AP (0.4714 vs 0.4500 for fixed-tree XGBoost), with the static Platt calibrator chosen by the Sep→Oct rule. The 95% day-block bootstrap interval for test AP, XGBoost − LogReg, is [−0.010, +0.040]; it includes zero, so it establishes neither a difference nor equivalence.
 
-The [8-page IEEE report](report/main.pdf) covers related work, method theory and results. Development-time test exposure is disclosed in the [development protocol](docs/development_protocol.md). A later phase adds an MLP with learned airline, origin and destination embeddings; a temporal deep-learning model is optional and needs correctly ordered flight history.
+The [7-page IEEE report](report/main.pdf) covers related work, method theory and results. Development-time test exposure is disclosed in the [development protocol](docs/development_protocol.md). A later phase adds an MLP with learned airline, origin and destination embeddings; a temporal deep-learning model is optional and needs correctly ordered flight history.
 
 ## Dataflow
 
@@ -50,9 +50,9 @@ flowchart TD
     TRAIN --> REF
 
     subgraph CALIB["Calibration (development data only)"]
-        CSEL(["Calibrator rule<br/>rolling-origin folds on Jan – Oct"])
-        PLATT["Causal rolling Platt<br/>28-day window"]
-        THR["Frozen threshold<br/>precision ≥ 0.40 → 0.508"]
+        CSEL(["Calibrator rule<br/>fit on Sep, check ECE on Oct"])
+        PLATT["Static Platt (LogReg)<br/>XGBoost stays raw"]
+        THR["Frozen threshold<br/>precision ≥ 0.40 → 0.329"]
         CSEL --> PLATT --> THR
     end
 
@@ -82,10 +82,12 @@ flowchart TD
 1. **Target:** `is_delayed = arr_delay >= 15`. Cancelled and diverted flights stay in the schedule for congestion counts but are excluded from the main target; a sensitivity analysis counts them as delayed.
 2. **Features:** 43 categorical, schedule, cyclic-time, calendar, congestion and historical-delay features. A flight's own actual departure/arrival times are never predictors; earlier flights' outcomes enter history only once they are known at the decision clock.
 3. **Fitting and selection:** tune LogReg and XGBoost on four rolling-origin folds (May–Aug) with the same features. Fitting, CV scoring, calibration and threshold selection all enforce outcome-availability cutoffs.
-4. **Calibration:** choose the calibrator on development data only. Four rolling-origin folds on Jan–Oct compare raw, static Platt, static isotonic and causal rolling Platt (28 days); the lowest mean ECE wins if it beats raw by more than 0.005. Rolling Platt is selected for both models.
+4. **Calibration:** choose the calibrator on development data only, by a rule declared before testing. Platt and isotonic are fitted on September and compared by ECE on October; the better one is adopted only if it lowers October ECE by more than 0.005, then refitted on Sep–Oct. LogReg adopts Platt (gain 0.030); XGBoost stays raw (both recalibrators make October worse). A causal rolling Platt (28 days) is reported alongside as an adaptive alternative, not as the rule's choice.
 5. **Evaluation and decision support:** score Nov–Dec on AP, ROC AUC, Brier, ECE and policy precision/recall, flagging the riskiest 5–20% of flights each day under explicit review-capacity assumptions. A full what-if rescheduling simulation is future work.
 
 ## Headline result
+
+> **Corrected 2026-11-11.** An earlier version of this README described a Jan–Oct rolling-fold calibrator rule that selected rolling Platt 28d. The code (`evaluate.select_calibrator`), `results/` and the report use the Sep→Oct rule, which selected static Platt for LogReg; the README now matches them. No code, result or report changed.
 
 Test = Nov–Dec 2013, 53,991 flights, base rate 0.258. PR-AUC is average precision (AP). Values are rounded from [results/headline_test.csv](results/headline_test.csv); selection metadata is in [results/summary.json](results/summary.json). *Prior* and *route history* are reference rows. Lower Brier and ECE are better.
 
@@ -94,15 +96,15 @@ Test = Nov–Dec 2013, 53,991 flights, base rate 0.258. PR-AUC is average precis
 | Prior (base rate) | none | 0.258 | 0.500 | 0.192 | 0.007 | 0.007 | 0.000 |
 | Route history | none (smoothed rate) | 0.353 | 0.621 | 0.187 | 0.037 | 0.038 | 0.244 |
 | LogReg (raw) | raw | 0.393 | 0.653 | 0.181 | 0.019 | 0.022 | 0.421 |
-| LogReg (rolling Platt 28d, rule-selected) | rolling Platt 28d (rule-selected) | 0.392 | 0.657 | 0.181 | 0.027 | 0.027 | 0.428 |
+| **LogReg (Platt, rule-selected): final** | Platt (rule-selected) | 0.393 | 0.653 | 0.187 | 0.082 | 0.082 | 0.421 |
 | LogReg (rolling Platt 28d) | rolling Platt 28d (causal) | 0.392 | 0.657 | 0.181 | 0.027 | 0.027 | 0.428 |
-| XGBoost (rolling Platt 28d, rule-selected) | rolling Platt 28d (rule-selected) | 0.396 | 0.664 | 0.180 | 0.023 | 0.022 | 0.438 |
+| XGBoost (raw, rule-selected) | raw (rule-selected) | 0.407 | 0.665 | 0.179 | 0.027 | 0.027 | 0.483 |
 | XGBoost (rolling Platt 28d) | rolling Platt 28d (causal) | 0.396 | 0.664 | 0.180 | 0.023 | 0.022 | 0.438 |
 
-- **Calibration (LogReg):** rolling Platt test ECE is 0.027 (December 0.050); a static Platt fit would reach 0.143 in December (base rate 33.5%). Raw scores reach 0.019 on test but lost to rolling Platt in three of four development folds, so switching to raw would select on the test set.
-- **Primary policy (final model, daily top 10%):** precision 0.448, recall 0.174, lift 1.73× (prior: 0.94×).
-- **Secondary policy (threshold 0.508, frozen on Sep–Oct for precision ≥ 0.40):** test precision 0.547 but recall only 0.040. A test-tuned oracle threshold would reach recall 0.428 at precision 0.400 ([threshold_vs_oracle.csv](results/threshold_vs_oracle.csv)): a fixed probability cut transfers poorly across seasons.
-- **Accuracy hides ranking skill:** LogReg accuracy 0.743 / 0.731 and F1 0.075 / 0.251 (frozen threshold / daily top 10%), while predicting every flight on time already scores 74.2%. See [evaluation notes](docs/04_evaluation.md) and the [confusion matrix](figures/confusion_logreg_test.png).
+- **Calibration (LogReg):** the static Platt calibrator chosen on Sep–Oct fails under the seasonal base-rate shift: test ECE 0.082, and 0.143 in December (base rate 33.5%, against 15.7% in Sep–Oct). The causal rolling Platt, whose intercept follows the base rate with a lag, keeps test ECE at 0.027 (December 0.050). Raw scores reach 0.019 on test, but choosing raw or rolling Platt now would select on the test set; the report presents rolling Platt as the remedy for future deployment.
+- **Primary policy (final model, daily top 10%):** precision 0.448, recall 0.174, lift 1.73× (prior: 0.94×). Calibration does not change a within-day ranking, so this policy is the same for every LogReg calibration.
+- **Secondary policy (threshold 0.329, frozen on Sep–Oct for precision ≥ 0.40):** test precision 0.491, recall 0.141, F1 0.220, but it flags 7.4% of flights instead of 3.8% on Sep–Oct: a fixed probability cut does not fix the workload when the base rate moves.
+- **Accuracy hides ranking skill:** LogReg accuracy 0.740 / 0.731 and F1 0.220 / 0.251 (frozen threshold / daily top 10%), while predicting every flight on time already scores 74.2%. See [evaluation notes](docs/04_evaluation.md) and the [confusion matrix](figures/confusion_logreg_test.png).
 - **Metric notes:** `oracle_recall@p` tunes the threshold on the evaluated labels, so it compares models and is not an operating result. `ece` uses 15 fixed-width bins; `ece_equal_mass` uses up to 15 rank bins that keep tied probabilities together ([details](docs/04_evaluation.md)). Use fixed-width ECE and Brier for calibration; low ECE alone does not imply ranking skill.
 
 ## Team and roles
@@ -162,7 +164,7 @@ Environment and artefact details: [docs/reproducibility.md](docs/reproducibility
 | [development protocol](docs/development_protocol.md) | what was seen when (test not perfectly clean) |
 | [limitations & assumptions](docs/limitations_and_assumptions.md) | weather, single year, assumptions |
 | [reproducibility](docs/reproducibility.md) | environment, `reproduce.sh`, artefacts |
-| [report/](report/README.md) | 8-page IEEE report (`main.tex`, `main.pdf`, `references.bib`), generated figures/tables, build steps |
+| [report/](report/README.md) | 7-page IEEE report (`main.tex`, `main.pdf`, `references.bib`), generated figures/tables, build steps |
 
 ## Layout
 
