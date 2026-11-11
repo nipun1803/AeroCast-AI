@@ -1,6 +1,6 @@
 """Training, early stopping, rolling-origin CV and seed ensembles.
 
-Every network is fitted by the same procedure (docs/development_protocol.md):
+Every network is fitted by the same procedure (docs/02_models_and_training.md):
 
 1. inputs (encoder, sequence normaliser, wide LogReg) are fitted on the
    model's own fitting rows, through the leakage guards;
@@ -31,7 +31,7 @@ from aerocast.pipeline import Prepared
 from . import config, guards, models, sequences, tensors
 
 torch.set_num_threads(config.N_THREADS)
-# Protocol §3. Added after the runs; checked to leave a Wide & Deep fit (GRU, embeddings,
+# Training rule (docs/06). Added after the runs; checked to leave a Wide & Deep fit (GRU, embeddings,
 # wide part) bit-identical on CPU, so no reported number depends on it (change log).
 torch.use_deterministic_algorithms(True)
 

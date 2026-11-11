@@ -1,6 +1,6 @@
 """Calibration (Step 7): the Phase 1 Sep -> Oct rule with more candidates.
 
-Candidates (docs/development_protocol.md §4):
+Candidates (docs/06_rules_and_limitations.md):
 
 * static, fitted on September labels available by 1 Oct: raw, Platt,
   isotonic, temperature scaling;

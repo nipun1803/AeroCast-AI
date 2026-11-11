@@ -138,7 +138,7 @@ def stage_hybrid(P, cache, log) -> train.Spec:
 # ---------------------------------------------------------------------------
 # Secondary hybrid: MLP embeddings -> Phase 1 XGBoost (separate process)
 # ---------------------------------------------------------------------------
-EMB_COLS = ("carrier", "origin", "dest")      # low-cardinality only (leakage_safeguards.md)
+EMB_COLS = ("carrier", "origin", "dest")      # low-cardinality only (docs/01_inputs_and_leakage.md)
 
 
 def embedding_features(net, inp: train.Inputs, cat_cols: list[str]) -> np.ndarray:

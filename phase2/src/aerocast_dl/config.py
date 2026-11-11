@@ -3,7 +3,7 @@
 Everything shared with Phase 1 (decision clock, target, splits, CV folds,
 feature settings) is read from ``aerocast.config`` and never redefined here,
 so the two phases cannot drift apart. Rules fixed in
-docs/development_protocol.md are marked "(protocol)".
+docs/06_rules_and_limitations.md are marked "(protocol)".
 """
 from pathlib import Path
 

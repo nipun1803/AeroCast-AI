@@ -6,7 +6,7 @@
 #   ->  report assets  ->  number check  ->  report PDF
 #
 # The --final stage reads the Nov-Dec labels. In development it was run once, after the
-# protocol was frozen (docs/development_protocol.md); rerunning it here reproduces that
+# rules were frozen (docs/06_rules_and_limitations.md); rerunning it here reproduces that
 # evaluation (all seeds are fixed), it does not choose anything.
 #
 # Usage:  bash scripts/reproduce.sh            (about 3 hours on an M3 Pro, CPU)

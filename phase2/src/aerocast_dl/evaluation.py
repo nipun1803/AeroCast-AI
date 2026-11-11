@@ -134,7 +134,7 @@ def model_complexity(P: Prepared, cache: train.InputCache) -> dict:
 
 
 def select_final_model(complexity: dict) -> dict:
-    """Protocol §4: highest mean rolling-CV AP as deployed; within 0.005 of the
+    """Final-model rule (docs/06_rules_and_limitations.md): highest mean rolling-CV AP as deployed; within 0.005 of the
     best, the model with fewer trainable parameters."""
     cv = pd.concat([pipeline.phase1_cv(), pd.read_csv(config.RESULTS_DIR / "cv_models.csv")],
                    ignore_index=True).set_index("model")

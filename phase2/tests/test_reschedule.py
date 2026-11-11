@@ -1,4 +1,4 @@
-"""Step 8: what-if rescheduling mechanics and leakage (docs/leakage_safeguards.md)."""
+"""Step 8: what-if rescheduling mechanics and leakage (docs/01_inputs_and_leakage.md)."""
 import numpy as np
 import pandas as pd
 import pytest

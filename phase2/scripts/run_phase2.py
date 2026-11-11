@@ -1,6 +1,6 @@
 """Phase 2 end-to-end pipeline (single source of truth for reported numbers).
 
-Stages are added step by step (docs/development_protocol.md):
+Stages are added step by step (docs/README.md):
   data       Step 2: network inputs from the Phase 1 features, fitting clock,
              cold-start coverage of the category vocabularies
   sequences  Step 4: causal daily history windows for the GRU, checked

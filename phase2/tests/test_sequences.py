@@ -1,4 +1,4 @@
-"""Step 4 leakage tests for the GRU input sequences (docs/leakage_safeguards.md).
+"""Step 4 leakage tests for the GRU input sequences (docs/01_inputs_and_leakage.md).
 
 Perturbations reuse the Phase 1 helpers in ``aerocast.leakage`` so that both
 phases are tested against the same definition of leakage. Every negative test

@@ -61,7 +61,7 @@ class DelayNet(nn.Module):
     * Categoricals: learned embeddings (``cat_mode="embed"``) or fixed one-hot
       vectors (``"onehot"``, the ablation that isolates what embedding adds).
     * LayerNorm, not BatchNorm: a row's output never depends on the other
-      rows of its batch (leakage_safeguards.md).
+      rows of its batch (docs/01_inputs_and_leakage.md).
     * With a wide part the head starts at zero, so the untrained network
       equals the LogReg it is initialised from and learns a correction.
     """

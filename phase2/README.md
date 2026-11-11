@@ -6,7 +6,9 @@ Phase 2 asks whether learned representations recover signal that the hand-built 
 
 - **Same inputs:** decision clock 20:00 NYC on D−1, target `arr_delay ≥ 15`, the 43 Phase 1 features, the chronological split (train Jan 8–Aug · calibration Sep–Oct · test Nov–Dec) and the four rolling-origin CV folds (May–Aug). They are imported from the `aerocast` package, not copied.
 - **Models:** an MLP with learned carrier, origin and destination embeddings; the MLP plus a GRU over causal 28-day delay histories of the origin, carrier and route; a **Wide & Deep hybrid** whose wide part starts as the Phase 1 LogReg; and MLP embeddings fed to the Phase 1 XGBoost.
-- **Rules first:** the selection and calibration rules and the test lock were committed before any model was trained ([docs/development_protocol.md](docs/development_protocol.md)); the test labels were read once.
+- **Rules first:** the selection and calibration rules and the test lock were committed before any model was trained ([docs/06](docs/06_rules_and_limitations.md)); the test labels were read once.
+
+**Start with the [documentation](docs/README.md)**: six short documents explaining the inputs, models, results, test evaluation, rescheduling and rules, in reading order.
 
 ## Results
 
@@ -44,12 +46,19 @@ The venv is shared with Phase 1 at the repository root. From `phase2/`:
 
 ```bash
 ../.venv/bin/pip install -r requirements.txt && ../.venv/bin/pip install -e ../phase1 -e .
-python -B -m pytest -q -p no:cacheprovider        # 59 tests: leakage, alignment, training, calibration, lock, rescheduling, report
+python -B -m pytest -q -p no:cacheprovider        # 60 tests: leakage, alignment, training, calibration, lock, rescheduling, report
 python -B scripts/run_phase2.py                    # every stage up to the test (about 2 hours on an M3 Pro CPU)
-python -B scripts/run_phase2.py --final            # the one test evaluation (refused while the protocol has uncommitted changes)
+python -B scripts/run_phase2.py --final            # the one test evaluation (refused while the rules docs have uncommitted changes)
+python -m ipykernel install --sys-prefix --name aerocast   # once, for the notebooks
 ```
 
-Full clean rebuild, notebooks, report assets and PDF: `bash scripts/reproduce.sh` (about 3 hours). Details: [docs/reproducibility.md](docs/reproducibility.md).
+- **Full rebuild.** `bash scripts/reproduce.sh` runs the tests, a clean pipeline run, `--final`, notebooks 05–11, report export, the number check and the PDF build. It takes about 3 hours and has not been run end to end in one go; every stage was run individually.
+- **Data.** `flights.csv` goes in `../phase1/data/raw/`.
+- **Determinism.** Seeds 42–46, deterministic torch algorithms, CPU.
+- **Stage times** (M3 Pro). GRU search 28 min, Wide & Deep 26 min, ablations 39 min; every other stage takes a few minutes.
+- **macOS OpenMP.** `import aerocast_dl` loads torch before XGBoost and refuses the reverse order, which crashes on macOS. XGBoost fits run in a separate process (`scripts/xgb_worker.py`).
+- **iCloud.** If the repository is in an iCloud folder, evicted files hang on read. Keep the venv outside iCloud, and fetch evicted files with `brctl download` (`find . -flags +dataless` lists them).
+- **Model weights.** The final weights are cached in the git-ignored `data/cache/`. On a fresh clone, run `final_fit` before `reschedule` or `--final`.
 
 ## Contents
 
@@ -62,9 +71,7 @@ Full clean rebuild, notebooks, report assets and PDF: `bash scripts/reproduce.sh
 | [09_ablation_studies](notebooks/09_ablation_studies.ipynb) | Step 6: 16 ablations on rolling CV |
 | [10_calibration_and_test](notebooks/10_calibration_and_test.ipynb) | Step 7: Sep→Oct calibration, final-model rule, the one test run, slices, drift |
 | [11_whatif_rescheduling](notebooks/11_whatif_rescheduling.ipynb) | Step 8: what-if rescheduling under explicit assumptions |
-| [docs/development_protocol.md](docs/development_protocol.md) | pre-registered rules, test lock, dated change log |
-| [docs/leakage_safeguards.md](docs/leakage_safeguards.md) | leakage rules G1–G7, deep-learning risks, the tests each step must pass |
-| [docs/reproducibility.md](docs/reproducibility.md) | environment, stages and run times, artefacts, macOS notes |
+| [docs/](docs/README.md) | project documentation: overview and the six explanatory documents |
 
 ```text
 src/aerocast_dl/  config · guards (leakage assertions) · tensors (train-only encoders) · sequences (causal windows)

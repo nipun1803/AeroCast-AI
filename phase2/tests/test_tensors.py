@@ -1,4 +1,4 @@
-"""Step 2 leakage and alignment tests (docs/leakage_safeguards.md)."""
+"""Step 2 leakage and alignment tests (docs/01_inputs_and_leakage.md)."""
 from dataclasses import replace
 
 import numpy as np

@@ -1,4 +1,4 @@
-"""Leakage guards called inside every Phase 2 fit (docs/leakage_safeguards.md).
+"""Leakage guards called inside every Phase 2 fit (docs/01_inputs_and_leakage.md).
 
 They raise instead of warning: a fit that would use an unavailable label or a
 forbidden split must not run at all.
