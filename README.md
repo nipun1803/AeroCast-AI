@@ -22,7 +22,7 @@ Phase 2 reuses Phase 1's decision clock, target, features, chronological split a
 | **Mohan Kumar C R** | [mohan101mk](https://github.com/mohan101mk) |
 | **Krish Dabas** | [krish-2509](https://github.com/krish-2509) |
 
-Phase 1 roles are listed in [phase1/README.md](phase1/README.md#team-and-roles).
+Roles per phase: [Phase 1](phase1/README.md#team-and-roles) · [Phase 2](phase2/README.md#team-and-roles).
 
 ## Setup
 

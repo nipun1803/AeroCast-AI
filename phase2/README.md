@@ -26,6 +26,18 @@ Phase 2 asks whether learned representations recover signal that the hand-built 
 
 Report: [report/main.pdf](report/main.pdf) (7 pages).
 
+## Team and roles
+
+Team number: **T49**. Phase 1 roles are in [../phase1/README.md](../phase1/README.md#team-and-roles).
+
+| Member | GitHub ID | Phase 2 role |
+|---|---|---|
+| **Nipun Patlori** | [nipun1803](https://github.com/nipun1803) | Hyperparameter searches, Wide & Deep and embeddings → XGBoost hybrids, ablation results; IEEE report |
+| **Anushka Tyagi** | [anu-ushka](https://github.com/anu-ushka) | Embedding MLP, training loop and CV-as-deployed procedure; diagnostics of why the MLP trails LogReg |
+| **Omkar Hadole** | [omkar-hadole](https://github.com/omkar-hadole) | What-if rescheduling rule: tuning on Sep–Oct and the Nov–Dec analysis |
+| **Mohan Kumar C R** | [mohan101mk](https://github.com/mohan101mk) | Calibration, final-model rule, test lock and the one test evaluation (slices, drift, confusion matrices); protocol |
+| **Krish Dabas** | [krish-2509](https://github.com/krish-2509) | Infrastructure and reproducibility (torch/XGBoost process split, `reproduce.sh`, report checks); notebooks and documentation |
+
 ## Run
 
 The venv is shared with Phase 1 at the repository root. From `phase2/`:
