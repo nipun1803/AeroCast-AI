@@ -9,7 +9,12 @@ Every network is fitted by the same procedure (docs/02_models_and_training.md):
    the epoch count, then refit on ALL the fold's rows for that many epochs
    and score the validation month once. (Scoring the early-stopped model
    instead would score a model that never saw the freshest 14 days, which
-   the deployed refit does see.)
+   the deployed refit does see.) The only input fitted on labels, the wide
+   LogReg, is refitted on the inner training rows for the early-stopping
+   run (``early_stopping_inputs``), so no holdout label is seen before the
+   holdout scores an epoch; ``fit`` refuses a holdout the wide part saw.
+   The label-free transforms (vocabularies, medians, scalers) keep their fit
+   on all the fold's rows;
 3. final model: all training rows available at ``FINAL_FIT_DATE``, for a
    fixed number of epochs (the mean of the CV best epochs);
 4. the deployed prediction is the mean logit over ``config.SEEDS``.
@@ -86,6 +91,7 @@ class Inputs:
     wide: torch.Tensor | None = None        # [n_rows, wide_dim]
     wide_coef: np.ndarray | None = None
     wide_intercept: float | None = None
+    wide_rows: np.ndarray | None = None     # rows whose labels fitted the wide LogReg
     # fitted transforms, kept so that modified feature rows can be re-encoded
     # (what-if rescheduling); all were fitted on the same fitting rows
     encoder: tensors.TabularEncoder | None = None
@@ -124,19 +130,37 @@ def build_inputs(P: Prepared, seqs, fit_rows: np.ndarray, fit_date, spec: Spec) 
                    for n, w in win.items()}
         inp.seq_idx = {n: torch.from_numpy(v) for n, v in sequences.row_index(P, sub).items()}
     if spec.wide:
-        info = tensors.row_info(P).iloc[fit_rows]
-        guards.assert_rows_in_splits(info["split"], {"train"}, "wide LogReg fit")
-        guards.assert_labels_available(info["avail"], fit_date, "wide LogReg fit")
-        cols = P.cat_cols + num_cols
-        lr = p1_models.make_logreg(P.cat_cols, num_cols, config.LOGREG_C)
-        lr.fit(P.X.iloc[fit_rows][cols], y[fit_rows].astype(int))
-        Z = lr.named_steps["pre"].transform(P.X[cols])
-        Z = Z.toarray() if hasattr(Z, "toarray") else np.asarray(Z)
-        inp.wide = torch.from_numpy(Z.astype(np.float32))
-        inp.wide_coef = lr.named_steps["clf"].coef_.ravel()
-        inp.wide_intercept = float(lr.named_steps["clf"].intercept_[0])
-        inp.wide_pre = lr.named_steps["pre"]
+        _fit_wide(P, inp, fit_rows, fit_date, y)
     return inp
+
+
+def _fit_wide(P: Prepared, inp: Inputs, rows: np.ndarray, fit_date, y: np.ndarray) -> None:
+    """Fit the wide LogReg on ``rows`` (guarded) and set the wide part of ``inp``."""
+    rows = np.asarray(rows)
+    info = tensors.row_info(P).iloc[rows]
+    guards.assert_rows_in_splits(info["split"], {"train"}, "wide LogReg fit")
+    guards.assert_labels_available(info["avail"], fit_date, "wide LogReg fit")
+    cols = P.cat_cols + inp.num_cols
+    lr = p1_models.make_logreg(P.cat_cols, inp.num_cols, config.LOGREG_C)
+    lr.fit(P.X.iloc[rows][cols], y[rows].astype(int))
+    Z = lr.named_steps["pre"].transform(P.X[cols])
+    Z = Z.toarray() if hasattr(Z, "toarray") else np.asarray(Z)
+    inp.wide = torch.from_numpy(Z.astype(np.float32))
+    inp.wide_coef = lr.named_steps["clf"].coef_.ravel()
+    inp.wide_intercept = float(lr.named_steps["clf"].intercept_[0])
+    inp.wide_pre = lr.named_steps["pre"]
+    inp.wide_rows = rows
+
+
+def early_stopping_inputs(P: Prepared, inp: Inputs, tr: np.ndarray, fit_date) -> Inputs:
+    """Inputs for the early-stopping run on the inner training rows ``tr``:
+    ``inp`` with the wide LogReg refitted on ``tr`` only (the other tensors are
+    shared, not copied). Without a wide part, ``inp`` itself."""
+    if inp.wide is None:
+        return inp
+    es_inp = replace(inp)
+    _fit_wide(P, es_inp, tr, fit_date, inp.y.numpy())
+    return es_inp
 
 
 # ---------------------------------------------------------------------------
@@ -193,6 +217,10 @@ def fit(spec: Spec, inp: Inputs, train_rows, seed: int, es_rows=None,
     loss (best epoch restored). Without: exactly ``epochs`` epochs."""
     if (es_rows is None) == (epochs is None):
         raise ValueError("give either es_rows (early stopping) or epochs (fixed)")
+    if es_rows is not None and inp.wide_rows is not None and \
+            np.intersect1d(inp.wide_rows, np.asarray(es_rows)).size:
+        raise guards.LeakageError("early-stopping rows were used to fit the wide LogReg "
+                                  "(use early_stopping_inputs)")
     gen = _seed(seed)
     net = make_model(spec, inp)
     opt = _optimiser(net, spec)
@@ -263,11 +291,23 @@ class InputCache:
             self._c[k] = build_inputs(self.P, self.seqs, fit_rows, fit_date, spec)
         return self._c[k]
 
+    def get_es(self, key, fit_rows, fit_date, spec: Spec) -> tuple[Inputs, Inputs, np.ndarray, np.ndarray]:
+        """(inputs, early-stopping inputs, inner training rows, inner holdout
+        rows) for one fold: see ``early_stopping_inputs``."""
+        inp = self.get(key, fit_rows, fit_date, spec)
+        tr, es = inner_split(self.P, np.asarray(fit_rows), fit_date)
+        k = (key, spec.input_key(), "early_stopping")
+        if k not in self._c:
+            self._c[k] = early_stopping_inputs(self.P, inp, tr, fit_date)
+        return inp, self._c[k], tr, es
 
-def refit_as_deployed(spec: Spec, inp: Inputs, fit_rows, tr, es, seed: int):
-    """Choose the epoch count on the inner holdout, then refit on all
-    ``fit_rows`` for that many epochs (the deployed procedure)."""
-    _, info = fit(spec, inp, tr, seed, es_rows=es)
+
+def refit_as_deployed(spec: Spec, inp: Inputs, fit_rows, tr, es, seed: int,
+                      es_inp: Inputs | None = None):
+    """Choose the epoch count on the inner holdout (with ``es_inp``, whose
+    wide part never saw it), then refit on all ``fit_rows`` for that many
+    epochs with ``inp`` (the deployed procedure)."""
+    _, info = fit(spec, es_inp if es_inp is not None else inp, tr, seed, es_rows=es)
     net, _ = fit(spec, inp, fit_rows, seed, epochs=info["best_epoch"])
     return net, info
 
@@ -276,12 +316,11 @@ def cv(P: Prepared, spec: Spec, seeds, cache: InputCache, keep_logits: bool = Fa
     """Fold x seed results and the seed-ensemble ("as deployed") AP per fold."""
     rows, ens, logits = [], [], {}
     for k, fit_rows, va, fit_date in folds(P):
-        inp = cache.get(("fold", k), fit_rows, fit_date, spec)
-        tr, es = inner_split(P, fit_rows, fit_date)
+        inp, es_inp, tr, es = cache.get_es(("fold", k), fit_rows, fit_date, spec)
         y_va = inp.y[torch.as_tensor(va)].numpy()
         zs = []
         for s in seeds:
-            net, info = refit_as_deployed(spec, inp, fit_rows, tr, es, s)
+            net, info = refit_as_deployed(spec, inp, fit_rows, tr, es, s, es_inp)
             z = predict_logits(net, inp, va)
             zs.append(z)
             rows.append({"fold": k, "val_month": int(P.meta["month"].iloc[va[0]]), "seed": s,

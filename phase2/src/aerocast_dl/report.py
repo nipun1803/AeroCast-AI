@@ -31,6 +31,8 @@ NAME = {"Phase 1 LogReg": "LogReg (Phase 1)", "Phase 1 XGBoost": "XGBoost (Phase
 def _cv() -> pd.DataFrame:
     cv = pd.concat([pipeline.phase1_cv(), pd.read_csv(R / "cv_models.csv")], ignore_index=True)
     cv = cv[cv["model"].isin(NAME)].copy()
+    order = {m: i for i, m in enumerate(NAME)}            # fixed row order, not the CSV's
+    cv = cv.sort_values("model", key=lambda s: s.map(order), kind="stable")
     sel = json.loads((R / "selection.json").read_text()) if (R / "selection.json").exists() else None
     key = {v: k for k, v in evaluation.CV_NAME.items()}
     cv["Params"] = [sel["complexity"][key[m]] if sel else float("nan") for m in cv["model"]]
@@ -120,6 +122,9 @@ def export() -> dict:
             copied.append(f)
     tables = report_tables()
     for name, (df, dec) in tables.items():
+        num = df.select_dtypes("float").columns
+        df = df.copy()
+        df[num] = df[num].round(dec) + 0.0                 # no "-0.000" cells
         df.to_csv(tabs / f"{name}.csv", index=False)
         (tabs / f"{name}.tex").write_text(to_booktabs(df, dec))
     return {"figures": copied, "tables": sorted(tables)}

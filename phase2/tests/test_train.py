@@ -104,6 +104,38 @@ def test_wide_init_fold_only(P):
         train.build_inputs(P, {}, P.idx["calib"][:500], config.FINAL_FIT_DATE, spec)
 
 
+@pytest.mark.slow
+def test_wide_never_sees_the_inner_holdout(P):
+    """Flipping every inner-holdout label leaves the early-stopping run's wide
+    part unchanged (it is fitted on the inner training rows only), while the
+    refit's wide part, fitted on all fold rows, does change (positive
+    control). Early stopping with a wide part that saw the holdout is refused."""
+    k, fit_rows, va, fit_date = next(train.folds(P))
+    spec = train.Spec(wide=True)
+    tr, es = train.inner_split(P, fit_rows, fit_date)
+    pos = {int(r): i for i, r in enumerate(P.idx["train"])}
+    flip = np.array([pos[int(r)] for r in es])
+
+    def wide_parts():
+        inp = train.build_inputs(P, {}, fit_rows, fit_date, spec)
+        es_inp = train.early_stopping_inputs(P, inp, tr, fit_date)
+        return inp, es_inp
+
+    inp_a, es_a = wide_parts()
+    P.labels.y["train"][flip] = 1 - P.labels.y["train"][flip]
+    try:
+        inp_b, es_b = wide_parts()
+    finally:
+        P.labels.y["train"][flip] = 1 - P.labels.y["train"][flip]
+    np.testing.assert_array_equal(es_a.wide_coef, es_b.wide_coef)
+    assert es_a.wide_intercept == es_b.wide_intercept
+    assert np.abs(inp_a.wide_coef - inp_b.wide_coef).max() > 1e-3
+    assert set(es_a.wide_rows.tolist()) == set(tr.tolist())
+    assert es_a.cat is inp_a.cat and es_a.num is inp_a.num      # only the wide part is refitted
+    with pytest.raises(guards.LeakageError):
+        train.fit(spec, inp_a, tr, seed=0, es_rows=es)
+
+
 def test_embedding_transfer_low_card():
     """Only carrier / origin / destination embeddings reach XGBoost; tail and
     flight embeddings (label-memorising for rare IDs) are never transferred."""

@@ -42,9 +42,11 @@ Fixed before training:
 1. Take the **highest mean CV AP** among LogReg, XGBoost, MLP, GRU model, Wide & Deep and embeddings → XGBoost.
 2. If other models are within 0.005 of it, choose the one with the **fewest trainable parameters**.
 
-LogReg has the best CV AP (0.4714). GRU (0.4672) and Wide & Deep (0.4691) are within 0.005 but are far larger. **Final model: Phase 1 LogReg with rolling Platt.** The choice used CV only (`results/selection.json`).
+LogReg has the best CV AP (0.4714). GRU (0.4672) and Wide & Deep (0.4684) are within 0.005 but are far larger. **Final model: Phase 1 LogReg with rolling Platt.** The choice used CV only (`results/selection.json`).
 
-## Test results (Nov–Dec 2013, 53,991 flights, read once)
+## Test results (Nov–Dec 2013, 53,991 flights)
+
+**The test stage ran twice.** After the first run, a code audit of the inputs and cohorts (not of test results) found two leaks: Wide & Deep's early-stopping wide LogReg had seen the 14-day inner holdout, and the rescheduling candidates and daily flag budgets left out flights later cancelled or diverted, which is only known after day D. Both were fixed with no change to any grid, rule or calibrator candidate, the affected stages were rerun, and the test stage ran again ([06](06_rules_and_limitations.md)). Only Wide & Deep (test AP 0.399 → 0.394) and the top-k and rescheduling numbers changed; the first run's numbers are in git history (commit `020bf24`).
 
 Each model uses its rule-selected calibrator.
 
@@ -53,40 +55,40 @@ Each model uses its rule-selected calibrator.
 | **LogReg (final)** | 0.392 | 0.657 | 0.181 | 0.027 | – |
 | Embedding MLP | 0.395 | 0.668 | 0.180 | 0.027 | +0.003 [−0.015, +0.027] |
 | MLP + GRU history | 0.398 | 0.668 | 0.180 | 0.035 | +0.006 [−0.013, +0.028] |
-| Wide & Deep | 0.399 | 0.664 | 0.180 | 0.028 | +0.007 [−0.005, +0.023] |
+| Wide & Deep | 0.394 | 0.656 | 0.181 | 0.036 | +0.003 [−0.016, +0.022] |
 | Embeddings → XGBoost | 0.400 | 0.664 | 0.179 | 0.017 | +0.009 [−0.014, +0.033] |
 | XGBoost (Phase 1) | 0.407 | 0.665 | 0.179 | 0.027 | +0.016 [−0.012, +0.043] |
 
-- **The order reverses CV, but nothing is significant.** Every Phase 2 model scores slightly above LogReg on test. The intervals come from a paired day-block bootstrap (days resampled, all models scored on the same days), and every one contains zero. XGBoost showed the same CV-vs-test reversal in Phase 1. The CV-based choice stands, because the test is not used to choose.
+- **The order reverses CV, but nothing is significant.** Every Phase 2 model scores slightly above LogReg on test. The intervals come from a paired day-block bootstrap (days resampled, all models scored on the same days), and every one contains zero. Neighbouring days are correlated, which day blocks ignore, so if anything the intervals are too narrow. XGBoost showed the same CV-vs-test reversal in Phase 1. The CV-based choice stands, because the test is not used to choose.
 - **Calibration holds on average, not in December.** LogReg's ECE is 0.005 in November but 0.050 in December: the late rate jumps to 33.5%, beyond anything the 28-day window has seen.
 
 ### Decisions at two operating points
 
 | Model | Daily top 10%: precision | recall | lift | Frozen threshold: precision | recall |
 |---|---|---|---|---|---|
-| LogReg (final) | 0.448 | 0.174 | 1.73 | 0.547 | 0.040 |
-| Embedding MLP | 0.449 | 0.175 | 1.74 | 0.522 | 0.005 |
-| MLP + GRU history | 0.450 | 0.175 | 1.74 | – | 0.000 |
-| Wide & Deep | 0.446 | 0.174 | 1.73 | 0.538 | 0.071 |
-| Embeddings → XGBoost | 0.442 | 0.172 | 1.71 | 0.467 | 0.211 |
-| XGBoost (Phase 1) | 0.438 | 0.171 | 1.70 | 0.549 | 0.070 |
+| LogReg (final) | 0.443 | 0.170 | 1.71 | 0.547 | 0.040 |
+| Embedding MLP | 0.446 | 0.171 | 1.73 | 0.522 | 0.005 |
+| MLP + GRU history | 0.446 | 0.172 | 1.73 | – | 0.000 |
+| Wide & Deep | 0.434 | 0.167 | 1.68 | 0.632 | 0.005 |
+| Embeddings → XGBoost | 0.437 | 0.168 | 1.69 | 0.467 | 0.211 |
+| XGBoost (Phase 1) | 0.435 | 0.168 | 1.68 | 0.549 | 0.070 |
 
-- **Daily top 10% (primary policy).** Each day the desk reviews the 10% riskiest flights. About 45% of them are actually late, 1.7 times the base rate. This is robust because it ranks within a day.
-- **Frozen threshold (secondary policy).** A probability cut chosen on Sep–Oct to reach 40% precision. Its precision holds on test, but it flags far fewer flights. The GRU model's threshold flags none at all, because probabilities shift with the season.
-- **LogReg confusion matrix at top 10%:** 2,430 late flights caught, 2,998 false alarms, 11,516 late flights missed (`figures/confusion_test.png`).
+- **Daily top 10% (primary policy).** Each day the desk reviews the 10% riskiest of **all** scheduled flights, including those that will later be cancelled or diverted, since that is unknown at 20:00 (they are about 4% of the flags). Precision and recall are measured on the flights with an outcome: about 44% of those flagged are late, 1.7 times the base rate. This is robust because it ranks within a day.
+- **Frozen threshold (secondary policy).** A probability cut chosen on Sep–Oct to reach 40% precision. Its precision holds on test, but it flags far fewer flights. The MLP's and Wide & Deep's thresholds flag 0.3% and 0.2% of flights, and the GRU model's none at all, because probabilities shift with the season.
+- **LogReg confusion matrix at top 10%:** 2,367 late flights caught, 2,981 false alarms, 11,579 late flights missed (220 further flags fell on flights without an outcome) (`figures/confusion_test.png`).
 
 ### Where the deep models differ (`results/test_slices.csv`)
 
 These breakdowns were fixed before the test run and are descriptive only: they choose nothing.
 
-- **By departure hour.** The GRU gains most for early flights (+0.017 AP for 05–09, +0.015 for 10–13). There, recent entity history is the main signal, because the day's congestion has not built up yet. Wide & Deep beats LogReg in every hour band (+0.006 to +0.010).
-- **Rare destinations.** Destinations with fewer than 50 training flights share one UNK embedding; there all networks gain (Wide & Deep +0.017). But that slice has only 93 flights, and mid-frequency destinations and routes show no consistent gain. The evidence that embeddings help rare categories is weak.
-- **By carrier.** Wide & Deep and the GRU model beat LogReg on 13 of 16 carriers, XGBoost on 15. No individual difference is tested.
+- **By departure hour.** The GRU gains most for early flights (+0.017 AP for 05–09, +0.015 for 10–13). There, recent entity history is the main signal, because the day's congestion has not built up yet. Wide & Deep is above LogReg in every hour band, but only just (+0.001 to +0.006).
+- **Rare destinations.** Destinations with fewer than 50 training flights share one UNK embedding; there all networks gain (Wide & Deep +0.019). But that slice has only 93 flights, and mid-frequency destinations and routes show no consistent gain. The evidence that embeddings help rare categories is weak.
+- **By carrier.** The GRU model beats LogReg on 13 of 16 carriers, Wide & Deep on 11 and XGBoost on 15. No individual difference is tested.
 
 ### Drift (`results/test_drift.csv`)
 
 PSI against the training rows: below 0.1 is stable, above 0.25 is a large shift.
 
-- **Inputs and network scores are stable.** The scores of LogReg and every network move by at most 0.017 from training to Nov–Dec. Carrier and origin shares barely move (≤ 0.004).
+- **Network scores are stable.** The scores of LogReg and every network move by at most 0.017 from training to Nov–Dec. Carrier and origin shares barely move (≤ 0.004).
 - **Tree models look unstable, but it is an artefact.** Their PSI is 0.33–0.38 on Sep–Oct, because their scores on training rows are in-sample.
-- **The test-time problem is the outcome rate, not the inputs.**
+- **The test-time problem is mainly the outcome rate.** Some inputs, such as holiday distance and recent traffic and delay rates, necessarily shift into the holiday season (this table does not measure feature-level PSI), but the scores stay stable.

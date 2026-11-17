@@ -73,6 +73,66 @@ def test_test_lock(monkeypatch):
         testlock.require_final()
     with pytest.raises(guards.LeakageError):
         evaluation.load_predictions(include_test=True)
+    with pytest.raises(guards.LeakageError):
+        evaluation.load_no_outcome()          # which test flights lack an outcome is test information
+
+
+def _policy_day(n_lab=180, n_ext=20, seed=0):
+    rng = np.random.default_rng(seed)
+    d = np.datetime64("2013-11-05")
+    return (np.full(n_lab, d), rng.random(n_lab), (rng.random(n_lab) < 0.3).astype(int),
+            np.full(n_ext, d), rng.random(n_ext))
+
+
+def test_daily_policy_budget_is_the_whole_timetable():
+    """The daily top-10% is 10% of every scheduled flight, the ones that will
+    lack an outcome included; dropping them (the old cohort) changes who is
+    flagged among the flights with an outcome (positive control)."""
+    dates, q, y, de, qe = _policy_day()
+    r = evaluation.daily_policy(dates, q, y, de, qe, 0.10)
+    assert r["scheduled"] == 200 and r["flagged_total"] == 20
+    assert r["tp"] + r["fp"] == 20 - r["flagged_no_outcome"]
+    assert r["flagged_no_outcome"] > 0
+    old = evaluation.daily_policy(dates, q, y, de[:0], qe[:0], 0.10)
+    assert old["tp"] + old["fp"] == 18 != r["tp"] + r["fp"]
+
+
+def test_daily_policy_flags_do_not_depend_on_labels():
+    """Who is flagged depends on scores only: permuting the labels of the
+    flights with an outcome leaves the flagged count and the flags unchanged."""
+    dates, q, y, de, qe = _policy_day(seed=3)
+    a = evaluation.daily_policy(dates, q, y, de, qe, 0.10)
+    b = evaluation.daily_policy(dates, q, np.random.default_rng(9).permutation(y), de, qe, 0.10)
+    assert a["tp"] + a["fp"] == b["tp"] + b["fp"] and a["flagged_no_outcome"] == b["flagged_no_outcome"]
+
+
+@pytest.mark.parametrize("name", ["raw", "platt", f"rolling_platt{calibrate.ROLL}",
+                                  f"rolling_temperature{calibrate.ROLL}"])
+def test_calibrate_on_days_matches_apply(name):
+    """Flights without an outcome get exactly the per-day map the calibrated
+    flights with an outcome got."""
+    pool = _pool()
+    target = pool["split"] == "test"
+    ref = calibrate.apply(name, pool) if name != "raw" else pool["p"]
+    out = evaluation.calibrate_on_days(name, pool, pool["date"][target], pool["p"][target])
+    np.testing.assert_allclose(out, ref[target], rtol=1e-7, atol=1e-9)
+
+
+@pytest.mark.slow
+def test_no_outcome_flights_and_xgb_worker(P):
+    """The extra flights are exactly the test flights without an arrival
+    outcome, and the XGBoost worker scores extra flights through the same
+    feature path as modelling rows (checked on flights that have one)."""
+    from aerocast_dl import pipeline
+    S, ex = evaluation.no_outcome_test_flights(P)
+    raw_test = P.raw[(P.raw["date"] >= "2013-11-01")]
+    assert ex.sum() == raw_test["is_delayed"].isna().sum() > 0
+    lab = np.flatnonzero(S.model_pos >= 0)[-5:]
+    n = len(P.meta)
+    probs, extra = pipeline.run_xgb_jobs(
+        [(np.zeros((n, 0), np.float32), P.idx["train"][:4000], S.model_pos[lab],
+          np.zeros((len(lab), 0), np.float32))], extra_index=S.raw_index[lab])
+    np.testing.assert_allclose(extra[0], probs[0], rtol=1e-6)
 
 
 def test_test_lock_watches_existing_rules_files():
