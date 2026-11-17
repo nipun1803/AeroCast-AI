@@ -112,7 +112,7 @@ add("GRU gain 05-09", pick(sl, dimension="dep_hour", slice="05-09").ap_gain_gru)
 add("W&D gain rare destinations", pick(sl, dimension="dest_train_rows", slice="< 50").ap_gain_wide_deep)
 add("rare-destination test flights", pick(sl, dimension="dest_train_rows", slice="< 50").n, 0)
 car = sl[sl.dimension == "carrier"]
-assert (car.ap_gain_wide_deep > 0).sum() == 13 and (car.ap_gain_gru > 0).sum() == 13
+assert (car.ap_gain_wide_deep > 0).sum() == 11 and (car.ap_gain_gru > 0).sum() == 13
 assert (car.ap_gain_xgboost > 0).sum() == 15 and len(car) == 16
 dr = csv("test_drift.csv").set_index("input")
 add("max network/LogReg score PSI on test",

@@ -2,7 +2,7 @@
 
 | File | What it is |
 |---|---|
-| `main.tex` | 7-page IEEEtran conference report (hand-written prose) |
+| `main.tex` | 8-page IEEEtran conference report (hand-written prose) |
 | `references.bib` | 12 references (BibTeX, `IEEEtran` style) |
 | `figures/` | the 8 PNG figures the report uses, **generated** (copied from `../figures/`) |
 | `tables/` | the report's 8 tables as `.csv` + `.tex` (booktabs), **generated** from `../results/` |

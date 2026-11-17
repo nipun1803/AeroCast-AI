@@ -28,7 +28,7 @@ Entity Embeddings, Causal History Sequences and a Wide \& Deep Hybrid}
 \maketitle
 
 \begin{abstract}
-Phase~1 predicted, at 20:00 on the evening before departure, whether a New York flight would arrive at least 15 minutes late, and selected a regularised logistic regression (LogReg) on 43 hand-built features. Phase~2 asks whether learned representations recover signal those features miss. Under the same decision clock, data, splits and folds, we train an entity-embedding MLP, a GRU over causal 28-day delay histories of the origin, carrier and route, a Wide \& Deep hybrid whose linear part starts as the Phase~1 LogReg, and an embeddings-to-XGBoost hybrid. Selection and calibration rules were committed before training, every other setting was fixed before testing, and test labels were read once. On rolling-origin cross-validation (CV) no network beats LogReg (average precision 0.471): Wide \& Deep reaches 0.469, the GRU model 0.467 and the MLP 0.465. Diagnostics trace the gap to hidden layers that overfit after one or two epochs on near-linear, already-smoothed rate features, and to a CV procedure error we found and corrected before testing; ablations show the GRU cannot replace the hand-built history ($-0.015$). By the pre-registered rule LogReg remains the final model. On November--December every Phase~2 model scores slightly above LogReg (0.395--0.400 vs 0.392), but no paired day-block interval excludes zero. A 28-day rolling Platt calibrator keeps test ECE at 0.027, and an offline what-if rescheduling rule tuned on Sep--Oct avoids 1.9 predicted delays a day at 48 moves.
+Phase~1 predicted, at 20:00 on the evening before departure, whether a New York flight would arrive at least 15 minutes late, and selected a regularised logistic regression (LogReg) on 43 hand-built features. Phase~2 asks whether learned representations recover signal those features miss. Under the same decision clock, data, splits and folds, we train an entity-embedding MLP, a GRU over causal 28-day delay histories of the origin, carrier and route, a Wide \& Deep hybrid whose linear part starts as the Phase~1 LogReg, and an embeddings-to-XGBoost hybrid. Selection and calibration rules were committed before training, and every other setting was fixed before testing. Test labels are scored only in a locked final stage; it ran twice, the second time after a code audit removed two leaks. On rolling-origin cross-validation (CV) no network beats LogReg (average precision 0.471): Wide \& Deep reaches 0.468, the GRU model 0.467 and the MLP 0.465. Diagnostics trace the gap to hidden layers that overfit after one or two epochs on near-linear, already-smoothed rate features, and to a CV procedure error we found and corrected before testing; ablations show the GRU cannot replace the hand-built history ($-0.015$). By the pre-registered rule LogReg remains the final model. On November--December every Phase~2 model scores slightly above LogReg (0.394--0.400 vs 0.392), but no paired day-block interval excludes zero. A 28-day rolling Platt calibrator keeps test ECE at 0.027, and an offline what-if rescheduling rule tuned on Sep--Oct avoids 1.9 predicted delays a day at 49 moves.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -46,7 +46,7 @@ Phase~1 built a leakage-tested day-ahead pipeline for flights leaving New York i
 \textbf{Contributions.}
 \begin{itemize}
 \item An \textbf{embedding MLP} (the brief's required model) and a \textbf{GRU over causal daily history windows}, whose inputs reproduce the Phase~1 history features exactly and pass the Phase~1 leakage tests.
-\item A \textbf{Wide \& Deep hybrid} whose wide part \emph{is} the Phase~1 LogReg at initialisation, so the network can only add to the ML model; and a secondary hybrid that feeds learned embeddings to XGBoost.
+\item A \textbf{Wide \& Deep hybrid} whose wide part \emph{is} the Phase~1 LogReg at initialisation, so training starts from the ML model; and a secondary hybrid that feeds learned embeddings to XGBoost.
 \item \textbf{Ablations and diagnostics} on CV that explain where the networks gain and lose, including a procedural error found and corrected before any test evaluation.
 \item \textbf{Calibrated} probabilities under seasonal shift and an \textbf{offline what-if rescheduling} analysis under explicit assumptions.
 \end{itemize}
@@ -107,12 +107,12 @@ Phase~1 built a leakage-tested day-ahead pipeline for flights leaving New York i
 \item \textbf{Embeddings are a factorised one-hot layer.} For a one-hot vector $e_c$ and first-layer weights $W\in\mathbb{R}^{h\times n}$, $We_c$ is column $c$ of $W$. An embedding writes $W=UE$ with $E\in\mathbb{R}^{k\times n}$, $k\ll n$: categories share the $k$ directions, so a rare value borrows strength from similar ones, and parameters fall from $hn$ to $kn+hk$.
 \item \textbf{GRU.} With input $x_t$ and state $h_{t-1}$:
 $z_t=\sigma(W_zx_t+U_zh_{t-1})$, $r_t=\sigma(W_rx_t+U_rh_{t-1})$, $\tilde h_t=\tanh(Wx_t+U(r_t\odot h_{t-1}))$, $h_t=(1-z_t)\odot h_{t-1}+z_t\odot\tilde h_t$.
-A Phase~1 $w$-day history feature is a fixed sum over the last $w$ slots of the same window; the GRU can represent such sums and also learn recency weights and non-linear trends.
+(PyTorch's \texttt{nn.GRU}, which we use, is a minor variant: it swaps the roles of $z_t$ and $1-z_t$ and applies $r_t$ after the product $Uh_{t-1}$.) A Phase~1 $w$-day history feature is a fixed sum over the last $w$ slots of the same window; the GRU can represent such sums and also learn recency weights and non-linear trends.
 \item \textbf{Wide \& Deep starts at LogReg.} With the deep head at zero, $z(x)=w^\top\phi(x)+b$, the fitted LogReg. Joint training minimises
-$\mathcal{L}=\frac1N\sum_i \ell\bigl(y_i,\,w^\top\phi(x_i)+b+f_\theta(x_i)\bigr)+\lambda\|\theta\|^2$,
-so $f_\theta$ learns a residual correction in the logit, as one step of functional gradient boosting with a network as the base learner.
+$\mathcal{L}=\frac1N\sum_i \ell\bigl(y_i,\,w^\top\phi(x_i)+b+f_\theta(x_i)\bigr)$
+with AdamW, whose decoupled weight decay acts on both parts; the wide part moves at a tenth of the deep learning rate. So $f_\theta$ learns a correction to the LogReg logit while $w$ adjusts slowly. This resembles boosting a network on LogReg's residual, but it is not boosting: both parts are trained together.
 \item \textbf{Loss without class weights.} Binary cross-entropy is a proper scoring rule: its minimiser is the true probability. Weighting positives by $\omega$ shifts the optimal logit by $\log\omega$, so it would mis-calibrate every prediction; imbalance is handled by the operating policy instead.
-\item \textbf{Temperature vs Platt.} Temperature scaling $q=\sigma(z/T)$ keeps the ranking and fixes over- or under-confidence, but has no intercept: it cannot move the mean prediction to a new base rate. Platt scaling $q=\sigma(az+b)$ can. Our seasons shift the base rate (calibration months 15.7\% late, test 25.8\%), so Platt-type calibrators are expected to win; we test both.
+\item \textbf{Temperature vs Platt.} Temperature scaling $q=\sigma(z/T)$ keeps the ranking and fixes over- or under-confidence, but has no intercept: it moves the mean prediction only as a side effect of rescaling every logit, not freely to a new base rate. Platt scaling $q=\sigma(az+b)$ can. Our seasons shift the base rate (calibration months 15.7\% late, test 25.8\%), so Platt-type calibrators are expected to win; we test both.
 \item \textbf{Seed ensembles.} Averaging the logits of $M$ networks trained from different seeds reduces the variance term of the error by up to a factor $M$ when their errors are weakly correlated~\cite{lakshminarayanan2017ensembles}.
 \end{itemize}
 
@@ -121,20 +121,20 @@ so $f_\theta$ learns a residual correction in the logit, as one step of function
 \begin{itemize}
 \item \textbf{Pre-registration.} The protocol (selection rules, search budgets, calibrator rule, test lock) was committed to the repository before any model was trained; every later amendment is in a dated change log with its reason.
 \item \textbf{Optimisation.} AdamW, batch 1024, binary cross-entropy, at most 40 epochs.
-\item \textbf{Early stopping as deployed.} In each fold, the last 14 days of the training window form an inner holdout that only chooses the number of epochs (patience 4, log loss); the network is then \textbf{refitted on all of the fold's rows} for that many epochs and scored once on the validation month. The final model repeats this with the mean CV epoch count, rounded up. The validation month never chooses anything.
+\item \textbf{Early stopping as deployed.} In each fold, the last 14 days of the training window form an inner holdout that only chooses the number of epochs (patience 4, log loss); the network is then \textbf{refitted on all of the fold's rows} for that many epochs and scored once on the validation month. Every input fitted on labels is refitted for the early-stopping run on the inner training rows only; for Wide \& Deep this includes the wide LogReg (an audit fix, Sec.~\ref{sec:results}). The final model repeats this with the mean CV epoch count, rounded up. The validation month never chooses anything.
 \item \textbf{Search and seeds.} 20 random MLP configurations, 12 GRU and 12 Wide \& Deep configurations, each scored on CV with one seed; the best of each family is re-scored as a 5-seed ensemble (mean logit), which is the number used for selection.
 \item \textbf{Final-model rule.} Highest mean CV AP as deployed among the Phase~1 and Phase~2 models; within 0.005 of the best, the one with fewer parameters.
 \item \textbf{Test diagnostics.} Slices, PR curves, confusion matrices and drift were added to the locked test stage before it ran (change log); they choose nothing.
-\item \textbf{Tests.} 60 automated tests cover leakage, row alignment, the training loop, calibration, the test lock, rescheduling and the report. The GRU windows reproduce the Phase~1 history counts exactly for every flight and window length; randomising future outcomes, late-evening $D-1$ arrivals or same-day cancellations leaves day-$D$ inputs unchanged, each with a positive control; encoders ignore every calibration and test row; test labels load only in the final stage and only with the protocol committed. Deliberately bucketing outcomes by flight date instead of availability date fails 11 of them, and a 23:00 instead of 20:00 clock fails 4.
+\item \textbf{Tests.} 70 automated tests cover leakage, row alignment, the training loop, calibration, the test lock, rescheduling and the report. The GRU windows reproduce the Phase~1 history counts exactly for every flight and window length; randomising future outcomes, late-evening $D-1$ arrivals or same-day cancellations leaves day-$D$ inputs unchanged, each with a positive control; encoders ignore every calibration and test row; Wide \& Deep's early-stopping inputs never see the inner holdout; rescheduling and flag budgets use the whole timetable; test labels are scored only in the final stage, which a lock refuses unless the protocol files are committed. During development, deliberately bucketing outcomes by flight date instead of availability date failed 11 of the leakage tests, and a 23:00 instead of 20:00 clock failed 4.
 \end{itemize}
 
 %====================================================================
 \section{Results}\label{sec:results}
 \subsection{Model selection on cross-validation}
 \begin{itemize}
-\item \textbf{No network beats LogReg on CV} (Table~\ref{tab:cv}, Fig.~\ref{fig:cv}). Mean CV AP: LogReg 0.471, Wide \& Deep 0.469, MLP + GRU 0.467, embedding MLP 0.465, embeddings $\rightarrow$ XGBoost 0.450 and Phase~1 XGBoost 0.450. The fold-to-fold spread (0.38 in August to 0.55 in July) dwarfs every gap between models.
+\item \textbf{No network beats LogReg on CV} (Table~\ref{tab:cv}, Fig.~\ref{fig:cv}). Mean CV AP: LogReg 0.471, Wide \& Deep 0.468, MLP + GRU 0.467, embedding MLP 0.465, embeddings $\rightarrow$ XGBoost 0.450 and Phase~1 XGBoost 0.450. The fold-to-fold spread (0.38 in August to 0.55 in July) dwarfs every gap between models.
 \item \textbf{Final model: LogReg.} It has the best CV AP; GRU and Wide \& Deep are within 0.005 but have 37{,}101 and 37{,}255 trainable parameters against 154, so the parsimony tie-break keeps LogReg. The selection used CV only.
-\item \textbf{Seeds matter less than folds.} The 5-seed spread of Wide \& Deep (mean SD over folds) is 0.004, an order of magnitude below the fold SD.
+\item \textbf{Seeds matter less than folds.} The 5-seed spread of Wide \& Deep (mean SD over folds) is 0.005, an order of magnitude below the fold SD.
 \end{itemize}
 
 \begin{table*}[!t]
@@ -154,10 +154,10 @@ so $f_\theta$ learns a residual correction in the logit, as one step of function
 \subsection{Why the networks trail LogReg}
 Table~\ref{tab:diag} isolates the gap with single-seed CV runs.
 \begin{itemize}
-\item \textbf{The training loop is sound.} A network with no hidden layer on the LogReg inputs, refitted on all fold rows, reaches 0.4640, close to LogReg (0.4714); the residual gap is the ridge penalty and solver, not a bug.
+\item \textbf{The training loop is sound.} A network with no hidden layer on the LogReg inputs, refitted on all fold rows, reaches 0.4640, close to LogReg (0.4714); the residual gap is consistent with their different penalty and solver (we did not test this further) rather than a bug.
 \item \textbf{A procedure error, found and corrected before testing.} Our first CV scored the early-stopped network, which never sees the fold's last 14 days (the inner holdout). LogReg itself drops from 0.4714 to 0.4668 without those days; the MLP gains from 0.4588 to 0.4644 when refitted on all rows. CV now scores the refit, as deployed, and every Phase~2 number was recomputed (protocol change log).
 \item \textbf{Hidden layers overfit almost at once.} The selected MLP's best epoch is 1 or 2 in every fold, against 3--8 for the linear network (Fig.~\ref{fig:lc}); training loss keeps falling while holdout loss rises. The history features are already smoothed rates, so the remaining signal is close to linear in them, the situation in which Grinsztajn et al.~\cite{grinsztajn2022tree} find networks have least to add.
-\item \textbf{Not day memorisation.} Removing the day-level history lowers the MLP to 0.4515, so these features carry signal rather than letting the network memorise days.
+\item \textbf{Day-level history carries signal.} Removing it lowers the MLP to 0.4515. This is consistent with these features carrying signal rather than only letting the network memorise days, though it does not rule memorisation out.
 \end{itemize}
 
 \begin{table}[!t]
@@ -182,7 +182,7 @@ Each row of Table~\ref{tab:abl} changes one thing in a selected configuration an
 \item \textbf{Feature groups.} Removing entity history costs $-0.017$, congestion $-0.010$ and day-level history $-0.010$, the same order as in Phase~1.
 \item \textbf{The GRU cannot replace the hand-built history}: using it instead of the history features costs $-0.015$ (CV 0.453). On top of them it adds little, and 7-, 14- and 28-day windows are indistinguishable.
 \item \textbf{Embeddings vs one-hot}: $-0.001$ for one-hot in the MLP; widths 2--16 are within noise. Tail, flight and origin-hour identifiers (up to 1{,}569 embedded values) add nothing.
-\item \textbf{Wide \& Deep is best without the GRU} ($+0.003$, CV 0.472, 3 of 4 folds) and without embeddings ($+0.001$). These are ablations, not candidates: the final-model rule was fixed on the pre-registered families before they ran, so neither is selected.
+\item \textbf{In Wide \& Deep, embeddings help and the GRU does not.} Replacing its embeddings with one-hot inputs costs $-0.005$ (0 of 4 folds improve); removing the GRU changes CV AP by $-0.000$ (CV 0.468), within noise. Before the audit fix both ablations seemed to help ($+0.003$ and $+0.001$); that was an artefact of the leaked early-stopping holdout. Ablations are not candidates: the final-model rule was fixed on the pre-registered families before they ran.
 \end{itemize}
 
 \begin{table}[!t]
@@ -214,12 +214,13 @@ Each row of Table~\ref{tab:abl} changes one thing in a selected configuration an
 \input{tables/calibrator_selection.tex}
 \end{table*}
 
-\subsection{Test performance (Nov--Dec, read once)}
+\subsection{Test performance (Nov--Dec)}
 \begin{itemize}
-\item \textbf{Ranking} (Table~\ref{tab:test}, Fig.~\ref{fig:pr}). Test AP: LogReg 0.392, embedding MLP 0.395, MLP + GRU 0.398, Wide \& Deep 0.399, embeddings $\rightarrow$ XGBoost 0.400 and XGBoost 0.407. The order reverses CV, as XGBoost did in Phase~1.
-\item \textbf{No significant difference.} Paired day-block bootstrap of AP minus LogReg: MLP 0.003 $[-0.015, 0.027]$, GRU 0.006 $[-0.013, 0.028]$, Wide \& Deep 0.007 $[-0.005, 0.023]$. Every interval contains zero.
-\item \textbf{Calibration holds on average, not in December.} Test ECE is 0.027 for LogReg, 0.027 for the MLP, 0.035 for the GRU, 0.028 for Wide \& Deep, 0.017 for embeddings $\rightarrow$ XGBoost and 0.027 for XGBoost (Fig.~\ref{fig:rel}). For LogReg it is 0.005 in November but 0.050 in December, whose late rate (33.5\%) is far above anything the 28-day window has seen.
-\item \textbf{Daily top 10\%} (Table~\ref{tab:pol}, Fig.~\ref{fig:cm}). Precision is 0.448 for LogReg, 0.449 for the MLP, 0.450 for the GRU, 0.446 for Wide \& Deep, 0.442 for embeddings $\rightarrow$ XGBoost and 0.438 for XGBoost, about 1.7 times the base rate. The threshold frozen on Sep--Oct for precision 0.40 keeps its precision (0.547 for LogReg) but flags far fewer flights; the GRU's threshold flags none.
+\item \textbf{The test stage ran twice.} After the first run, a code audit (of inputs and cohorts, not of test results) found two leaks. Wide \& Deep's early-stopping wide LogReg had been fitted on rows that included the 14-day inner holdout. The rescheduling candidates and daily flag budgets left out flights later cancelled or diverted, which is known only after day $D$. Both were fixed without changing any grid, rule or calibrator candidate; the affected CV stages and then the test stage were rerun, and the first run stays in the repository history. Only Wide \& Deep's metrics (test AP 0.399 before, 0.394 after) and the top-$k$ and rescheduling numbers changed; LogReg stays the final model.
+\item \textbf{Ranking} (Table~\ref{tab:test}, Fig.~\ref{fig:pr}). Test AP: LogReg 0.392, Wide \& Deep 0.394, embedding MLP 0.395, MLP + GRU 0.398, embeddings $\rightarrow$ XGBoost 0.400 and XGBoost 0.407. The order reverses CV, as XGBoost did in Phase~1.
+\item \textbf{No significant difference.} Paired day-block bootstrap of AP minus LogReg: MLP 0.003 $[-0.015, 0.027]$, GRU 0.006 $[-0.013, 0.028]$, Wide \& Deep 0.003 $[-0.016, 0.022]$. Every interval contains zero. Day blocks treat neighbouring days as independent, so if anything these intervals are too narrow.
+\item \textbf{Calibration holds on average, not in December.} Test ECE is 0.027 for LogReg, 0.027 for the MLP, 0.035 for the GRU, 0.036 for Wide \& Deep, 0.017 for embeddings $\rightarrow$ XGBoost and 0.027 for XGBoost (Fig.~\ref{fig:rel}). For LogReg it is 0.005 in November but 0.050 in December, whose late rate (33.5\%) is far above anything the 28-day window has seen.
+\item \textbf{Daily top 10\%} (Table~\ref{tab:pol}, Fig.~\ref{fig:cm}). The budget is 10\% of every scheduled flight, including those later cancelled or diverted (about 4\% of the flags), because which flights those will be is unknown at 20:00; precision and recall are measured on the flights with an outcome. Precision is 0.443 for LogReg, 0.446 for the MLP, 0.446 for the GRU, 0.434 for Wide \& Deep, 0.437 for embeddings $\rightarrow$ XGBoost and 0.435 for XGBoost, about 1.7 times the base rate. The threshold frozen on Sep--Oct for precision 0.40 keeps its precision (0.547 for LogReg) but flags far fewer flights: the MLP's and Wide \& Deep's flag 0.3\% and 0.2\% of flights, and the GRU's none.
 \end{itemize}
 
 \begin{table*}[!t]
@@ -262,9 +263,9 @@ Each row of Table~\ref{tab:abl} changes one thing in a selected configuration an
 These slices were fixed before the test run and select nothing (Table~\ref{tab:slices}).
 \begin{itemize}
 \item \textbf{Morning flights.} The GRU gains most before 14:00 ($+0.017$ AP from 05:00 to 09:00), where the day's congestion has not yet built up and recent entity history is the main signal.
-\item \textbf{Rare entities.} Destinations with fewer than 50 training flights share one embedding row; there all networks gain (Wide \& Deep $+0.017$), but on only 93 flights. Mid-frequency routes and destinations show no consistent gain, so the evidence that embeddings help rare categories is weak.
-\item \textbf{Carriers.} Wide \& Deep and the GRU beat LogReg on 13 of 16 carriers, XGBoost on 15; the gains are small and none is tested individually.
-\item \textbf{Drift.} The PSI of every network and LogReg score between training and Nov--Dec is at most 0.017 (stable); carrier and origin shares barely move. The test shift is in the outcome rate, not in the inputs.
+\item \textbf{Rare entities.} Destinations with fewer than 50 training flights share one embedding row; there all networks gain (Wide \& Deep $+0.019$), but on only 93 flights. Mid-frequency routes and destinations show no consistent gain, so the evidence that embeddings help rare categories is weak.
+\item \textbf{Carriers.} The GRU beats LogReg on 13 of 16 carriers, Wide \& Deep on 11 and XGBoost on 15; the gains are small and none is tested individually.
+\item \textbf{Drift.} The PSI of every network and LogReg score between training and Nov--Dec is at most 0.017 (stable), and carrier and origin shares barely move, although some inputs (holiday distance, recent traffic and delay rates) necessarily shift into the holiday season. The shift that matters is in the outcome rate.
 \item \textbf{Embeddings} (Fig.~\ref{fig:emb}) show no clear grouping of carriers by size or network type, consistent with the one-hot ablation: with 16 carriers and three origins there is little to factorise.
 \end{itemize}
 
@@ -286,9 +287,9 @@ These slices were fixed before the test run and select nothing (Table~\ref{tab:s
 \section{What-If Rescheduling (Offline)}\label{sec:resched}
 \begin{itemize}
 \item \textbf{Question.} If a planner could move a few of tomorrow's riskiest departures by one or two hours, how much predicted delay would that avoid?
-\item \textbf{Method.} Each day, the daily top-10\% flights are candidates. Greedily per origin, riskiest first, a candidate moves by $\pm1$ or $\pm2$ hours if the summed calibrated risk of all of that origin's flights that day, re-scored with the moved hour and the congestion it creates or relieves, falls by at least $\delta$, and the target hour does not exceed the busiest hour of the training timetable. Because the benefit is summed over the origin's day, spill-over onto other flights counts. Window and $\delta$ were tuned on Sep--Oct at a cost of 0.02 expected delays per move: $\pm2$ hours, $\delta=0.02$.
-\item \textbf{Result on Nov--Dec} (Table~\ref{tab:resched}, Fig.~\ref{fig:shift}). The frozen rule makes 48.1 moves a day and avoids 1.9 predicted delays a day; it pays at a cost of 0.02 per move but not at 0.05. Moving every candidate one hour earlier makes 88.8 moves a day for 0.1 avoided delays and loses at any cost. Most accepted moves are two hours.
-\item \textbf{Limits.} These are predicted, not realised, effects: the model has never seen a rescheduled flight, crew and aircraft rotations are ignored, and congestion is re-counted only from the schedule.
+\item \textbf{Method.} Each day, the daily top-10\% of the whole timetable are candidates, including flights later cancelled or diverted. Greedily per origin, riskiest first, a candidate moves by $\pm1$ or $\pm2$ hours if the summed calibrated risk of all of that origin's flights that day, re-scored with the moved hour and the congestion it creates or relieves, falls by at least $\delta$, and the target hour does not exceed the busiest hour of the training timetable. Because the benefit is summed over the origin's day, spill-over onto other flights counts. Window and $\delta$ were tuned on Sep--Oct at a cost of 0.02 expected delays per move: $\pm2$ hours, $\delta=0.02$.
+\item \textbf{Result on Nov--Dec} (Table~\ref{tab:resched}, Fig.~\ref{fig:shift}). The frozen rule makes 49.1 moves a day and avoids 1.9 predicted delays a day; it pays at a cost of 0.02 per move but not at 0.05. Moving every candidate one hour earlier makes 90.9 moves a day for 0.1 avoided delays; it gains slightly at zero cost and loses at 0.02 and 0.05. Most accepted moves are two hours.
+\item \textbf{Limits.} These are predicted, not realised, effects. Moves are chosen to maximise the same predicted gain that is reported, so the gain is biased upward (the optimiser's curse); at about 0.04 per move it is of the order of the calibration error. Also, the model has never seen a rescheduled flight, crew and aircraft rotations are ignored, and congestion is re-counted only from the schedule.
 \end{itemize}
 
 \begin{table}[!t]
@@ -310,10 +311,10 @@ These slices were fixed before the test run and select nothing (Table~\ref{tab:s
 \section{Discussion and Limitations}\label{sec:discussion}
 \begin{itemize}
 \item \textbf{The honest answer to the Phase~2 question is ``not here''.} Learned representations matched but did not beat a well-engineered linear model on CV, and their small test edge is within noise. This agrees with the tabular-data literature~\cite{gorishniy2021revisiting,grinsztajn2022tree}: the Phase~1 features already encode the history a GRU would learn.
-\item \textbf{Where networks may still pay.} The consistent small gains of Wide \& Deep (above LogReg on test, on most carriers and every hour band) suggest residual non-linearity; a longer history (several years) or richer inputs (weather, aircraft rotations) would give it more to find.
+\item \textbf{Where networks may still pay.} The small gains of the GRU model (most carriers, morning flights) suggest residual non-linearity or recency effects; a longer history (several years) or richer inputs (weather, aircraft rotations) would give it more to find.
 \item \textbf{What CV versus test disagreement means.} Four CV folds and two test months are few; the CV ranking was decided before testing and is kept. Reporting the reversal is part of the result.
 \item \textbf{Limitations.} One year and three airports; December's base-rate jump defeats both calibrators and frozen thresholds; the slices are descriptive; rescheduling is a counterfactual on predicted risk.
-\item \textbf{Disclosed optimism.} The wide part reuses Phase~1's LogReg penalty ($C=0.1$), chosen on the same four folds, which slightly flatters LogReg and the wide part of Wide \& Deep on CV; the Nov--Dec window was already seen during Phase~1 development, though no Phase~2 choice used it. Post-test changes (a duplicated table row, figure layout, an explicit determinism flag that changes no number) are logged in the protocol.
+\item \textbf{Disclosed optimism.} The wide part reuses Phase~1's LogReg penalty ($C=0.1$), chosen on the same four folds, which slightly flatters LogReg and the wide part of Wide \& Deep on CV; the Nov--Dec window was already seen during Phase~1 development, though no Phase~2 choice used it. The hyperparameter searches used the same folds that are reported, so the networks' CV is slightly optimistic, which makes LogReg's win safer. The tail-number history assumes the aircraft assigned to a flight is known at 20:00 on $D-1$. Post-test changes (a duplicated table row, figure layout, an explicit determinism flag that changes no number) and the audit fixes that led to the second test run are logged in the protocol.
 \end{itemize}
 
 \section{Conclusion}\label{sec:conclusion}

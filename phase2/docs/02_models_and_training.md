@@ -63,7 +63,7 @@ The MLP's learned carrier, origin and destination vectors are added as extra col
 
 A model is scored in CV the way it would actually be trained. In each fold:
 
-1. Train on the fold's rows minus its last 14 days, with early stopping on those 14 days. This **only chooses the number of epochs**.
+1. Train on the fold's rows minus its last 14 days, with early stopping on those 14 days. This **only chooses the number of epochs**. Everything fitted on labels for this run is fitted on those inner training rows only; for Wide & Deep that includes the wide LogReg (before the 2026-11-17 audit fix it had been fitted on all fold rows, holdout included; [06](06_rules_and_limitations.md)).
 2. Retrain from scratch on **all** of the fold's rows for that many epochs.
 3. Score the retrained model once on the validation month.
 

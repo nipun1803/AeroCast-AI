@@ -1,8 +1,8 @@
 ,Run,CV AP,Best epochs
-D0,"LogReg, all fold rows (Phase 1)",0.4714072036489442,--
-D1,LogReg without the last 14 days,0.4667986062771974,--
-D2,"linear network, early-stopped (no last 14 days)",0.4586341436779884,5/8/3/8
-D3,"linear network, refitted on all fold rows",0.4639561293424097,5/8/3/8
-D4,"selected MLP, early-stopped (no last 14 days)",0.458802284478027,1/1/1/2
-D5,"selected MLP, refitted on all fold rows",0.4643817194526138,1/1/1/2
-D6,"selected MLP refitted, without day-level history",0.4514779553208942,1/1/3/1
+D0,"LogReg, all fold rows (Phase 1)",0.4714,--
+D1,LogReg without the last 14 days,0.4668,--
+D2,"linear network, early-stopped (no last 14 days)",0.4586,5/8/3/8
+D3,"linear network, refitted on all fold rows",0.464,5/8/3/8
+D4,"selected MLP, early-stopped (no last 14 days)",0.4588,1/1/1/2
+D5,"selected MLP, refitted on all fold rows",0.4644,1/1/1/2
+D6,"selected MLP refitted, without day-level history",0.4515,1/1/3/1
