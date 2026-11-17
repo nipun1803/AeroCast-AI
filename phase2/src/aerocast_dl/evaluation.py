@@ -34,6 +34,11 @@ LABEL = {"logreg": "Phase 1 LogReg", "xgboost": "Phase 1 XGBoost", "mlp": "Embed
 CV_NAME = {"logreg": "Phase 1 LogReg", "xgboost": "Phase 1 XGBoost", "mlp": "mlp", "gru": "gru",
            "wide_deep": "wide_deep", "emb_xgb": "emb_xgb"}
 PRED_PATH = config.RESULTS_DIR / "predictions.csv.gz"
+# Scores of the test flights WITHOUT an arrival outcome (cancelled or diverted).
+# They are on tomorrow's timetable at 20:00 on D-1, so they compete for the daily
+# flag budget; they carry no label. Read only in the locked final stage.
+NO_OUTCOME_PATH = config.RESULTS_DIR / "predictions_no_outcome.csv.gz"
+NO_OUTCOME_KEYS = ["date", "carrier", "flight", "origin", "dest", "hour", "minute"]
 
 
 # ---------------------------------------------------------------------------
@@ -44,27 +49,73 @@ def final_epochs(name: str) -> int:
     return int(math.ceil(ps.loc[ps["model"] == name, "best_epoch"].mean()))
 
 
+def _sigmoid(z):
+    return 1 / (1 + np.exp(-np.asarray(z, dtype=float)))
+
+
+def no_outcome_test_flights(P: Prepared):
+    """(schedule, mask) of the test flights without an arrival outcome."""
+    from . import reschedule
+    S = reschedule.build_schedule(P.raw, P)
+    return S, (S.model_pos < 0) & (S.split == "test")
+
+
 def stage_final_fit(P: Prepared, cache: train.InputCache, log) -> None:
+    from . import reschedule
     all_rows = np.arange(len(P.meta))
-    scores, nets_mlp, inp_mlp = {}, None, None
+    S, ex = no_outcome_test_flights(P)
+    Me, Xe = S.meta[ex].reset_index(drop=True), S.X[ex].reset_index(drop=True)
+    check = P.idx["test"][:2000]                    # re-scoring check on modelling rows
+    scores, extra, nets_mlp, inp_mlp = {}, {}, None, None
     for fam in FAMILIES:
         spec, ep = pipeline.load_spec(fam), final_epochs(fam)
         log(f"final {fam}: {len(config.SEEDS)} seeds x {ep} epochs on the training rows "
             f"available at {config.FINAL_FIT_DATE}")
         nets, inp = train.fit_final(P, spec, ep, config.SEEDS, cache)
         z = train.ensemble_logits(nets, inp, all_rows)
-        scores[fam] = 1 / (1 + np.exp(-z))
+        scores[fam] = _sigmoid(z)
+        score = reschedule.network_scorer(P, nets, inp, cache.seqs)
+        np.testing.assert_allclose(score(P.X.iloc[check], P.meta.iloc[check]), z[check],
+                                   rtol=1e-5, atol=1e-5)
+        extra[fam] = _sigmoid(score(Xe, Me))
         for s, net in zip(config.SEEDS, nets):
             config.CACHE_DIR.mkdir(parents=True, exist_ok=True)
             train.torch.save(net.state_dict(), config.CACHE_DIR / f"final_{fam}_seed{s}.pt")
         if fam == "mlp":
             nets_mlp, inp_mlp = nets, inp
+    lr = reschedule.make_scorer(P, "logreg", cache)
+    extra["logreg"] = _sigmoid(lr(Xe, Me))
     rows = tensors.final_fit_rows(P)
-    jobs = [(pipeline.embedding_features(n, inp_mlp, P.cat_cols), rows, all_rows) for n in nets_mlp]
-    log("final emb_xgb: Phase 1 XGBoost + final MLP embeddings, one per seed (separate process)")
-    scores["emb_xgb"] = np.mean(pipeline.run_xgb_jobs(jobs), axis=0)
-    write_predictions(P, scores)
+    cat_e = inp_mlp.encoder.transform(Xe[P.cat_cols].astype(object), Xe[inp_mlp.num_cols]).cat
+    jobs = [(pipeline.embedding_features(n, inp_mlp, P.cat_cols), rows, all_rows,
+             pipeline.embedding_features(n, inp_mlp, P.cat_cols, cat=cat_e)) for n in nets_mlp]
+    # last job: the plain Phase 1 XGBoost (no embeddings), refitted to score the extra flights
+    jobs.append((np.zeros((len(all_rows), 0), np.float32), rows, all_rows,
+                 np.zeros((len(Xe), 0), np.float32)))
+    log("final emb_xgb: Phase 1 XGBoost + final MLP embeddings, one per seed, and the plain "
+        "Phase 1 XGBoost for the flights without an outcome (separate process)")
+    probs, probs_e = pipeline.run_xgb_jobs(jobs, extra_index=S.raw_index[ex])
+    scores["emb_xgb"] = np.mean(probs[:-1], axis=0)
+    extra["emb_xgb"] = np.mean(probs_e[:-1], axis=0)
+    extra["xgboost"] = probs_e[-1]
+    write_predictions(P, scores, xgb_refit=probs[-1], lr_refit=_sigmoid(lr(P.X, P.meta)))
+    write_no_outcome(Me, extra)
+    log(f"scored {len(Me)} test flights without an outcome (they join the daily flag budget)")
     embedding_figures(P, nets_mlp[0], inp_mlp)
+
+
+def write_no_outcome(meta: pd.DataFrame, extra: dict) -> None:
+    out = meta[NO_OUTCOME_KEYS].copy()
+    for m in MODELS:
+        out[m] = np.asarray(extra[m])
+    out.to_csv(NO_OUTCOME_PATH, index=False, compression="gzip")
+
+
+def load_no_outcome() -> pd.DataFrame:
+    """Scores of the test flights without an outcome; behind the test lock
+    (which test flights lack an outcome is itself only known after the fact)."""
+    testlock.require_final()
+    return pd.read_csv(NO_OUTCOME_PATH, float_precision="round_trip")
 
 
 def embedding_figures(P: Prepared, net, inp: train.Inputs) -> None:
@@ -86,14 +137,20 @@ def embedding_figures(P: Prepared, net, inp: train.Inputs) -> None:
             config.FIGURES_DIR / f"embedding_{col}.png", dpi=200)
 
 
-def write_predictions(P: Prepared, dl_scores: dict) -> None:
-    """Phase 1 predictions file + Phase 2 score columns, same rows and order."""
+def write_predictions(P: Prepared, dl_scores: dict, xgb_refit=None, lr_refit=None) -> None:
+    """Phase 1 predictions file + Phase 2 score columns, same rows and order.
+    ``xgb_refit`` / ``lr_refit``: Phase 2 refits of the Phase 1 models (used
+    to score flights without an outcome), checked to reproduce Phase 1."""
     p1_pred = pd.read_csv(pipeline.PHASE1_RESULTS / "predictions.csv.gz", float_precision="round_trip")
     order = np.concatenate([P.idx[s] for s in p1.SPLITS])        # Phase 1 file order
     assert len(order) == len(p1_pred)
     assert (pd.to_datetime(p1_pred["date"]).to_numpy()
             == pd.to_datetime(P.meta["date"].iloc[order]).to_numpy()).all()
     assert (p1_pred["y"].to_numpy() == tensors.row_info(P)["y"].to_numpy()[order]).all()
+    for name, refit in [("xgboost", xgb_refit), ("logreg", lr_refit)]:
+        if refit is not None:
+            np.testing.assert_allclose(np.asarray(refit)[order], p1_pred[name].to_numpy(),
+                                       rtol=1e-5, atol=1e-6, err_msg=f"{name} refit")
     out = p1_pred[["split", "date", "avail_date", "month", "y", "logreg", "xgboost"]].copy()
     for m, s in dl_scores.items():
         out[m] = np.asarray(s)[order]
@@ -171,8 +228,38 @@ def stage_calibrate(P: Prepared, cache: train.InputCache, log) -> None:
 # ---------------------------------------------------------------------------
 # The one-time test evaluation
 # ---------------------------------------------------------------------------
+def calibrate_on_days(name: str, pool: dict, dates, p) -> np.ndarray:
+    """Calibrated scores of rows ``p`` dated ``dates`` with the map deployed on
+    each day (``calibrate.day_maps``); rows need not be in ``pool``."""
+    p = np.asarray(p, dtype=float)
+    if name == "raw":
+        return p
+    days = pd.to_datetime(pd.Series(dates)).to_numpy()
+    maps = calibrate.day_maps(name, pool, days)
+    out = np.empty(len(p))
+    for d, ix in pd.Series(np.arange(len(p))).groupby(days):
+        out[ix.to_numpy()] = maps[pd.Timestamp(d)].predict(p[ix.to_numpy()])
+    return out
+
+
+def daily_policy(dates, q, y, dates_extra, q_extra, share: float) -> dict:
+    """Daily top-``share`` policy on the whole timetable.
+
+    At 20:00 on D-1 the desk ranks every flight of day D; which of them will
+    be cancelled or diverted is unknown. So the budget and the ranking include
+    the flights without an outcome (``dates_extra``, ``q_extra``), and
+    precision, recall and the confusion counts are measured on the flights
+    with one (``dates``, ``q``, ``y``)."""
+    n = len(q)
+    d = pd.to_datetime(pd.Series(np.concatenate([np.asarray(dates), np.asarray(dates_extra)]))).to_numpy()
+    flagged = evaluate.flag_daily_top_share(d, np.concatenate([q, q_extra]), share)
+    return {**evaluate.policy_report(y, flagged[:n]), "scheduled": int(len(d)),
+            "flagged_total": int(flagged.sum()), "flagged_no_outcome": int(flagged[n:].sum())}
+
+
 def stage_final(P: Prepared, cache: train.InputCache, log) -> None:
     df = load_predictions(include_test=True)            # raises unless --final and clean protocol
+    ext = load_no_outcome()
     sel = json.loads((config.RESULTS_DIR / "selection.json").read_text())
     test = df["split"].eq("test").to_numpy()
     y, dates, month = df["y"].to_numpy(), df["date"].to_numpy(), df["month"].to_numpy()
@@ -190,10 +277,18 @@ def stage_final(P: Prepared, cache: train.InputCache, log) -> None:
                              **evaluate.metric_bundle(y[mask], q[mask], sel["frozen_threshold"][m]
                                                       if variant == sel["calibrator"][m] else None)})
         q = cal[f"{m}:{sel['calibrator'][m]}"]
+        # the same calibration maps applied to the flights without an outcome
+        # (checked to reproduce the calibrated scores of the flights with one)
+        pool = _pool(df, m)
+        np.testing.assert_allclose(calibrate_on_days(sel["calibrator"][m], pool, dates[test],
+                                                     df[m].to_numpy(float)[test]), q[test],
+                                   rtol=1e-7, atol=1e-9)
+        q_ext = calibrate_on_days(sel["calibrator"][m], pool, ext["date"].to_numpy(),
+                                  ext[m].to_numpy(float))
         for share in p1.RESCHEDULE_SHARES:
-            flagged = evaluate.flag_daily_top_share(dates[test], q[test], share)
             pol.append({"model": m, "label": LABEL[m], "policy": f"daily top {share:.0%}",
-                        **evaluate.policy_report(y[test], flagged)})
+                        **daily_policy(dates[test], q[test], y[test], ext["date"].to_numpy(), q_ext,
+                                       share)})
         pol.append({"model": m, "label": LABEL[m], "policy": "frozen threshold (P>=0.40 on Sep-Oct)",
                     "threshold": sel["frozen_threshold"][m],
                     **evaluate.policy_report(y[test], q[test] >= sel["frozen_threshold"][m])})
