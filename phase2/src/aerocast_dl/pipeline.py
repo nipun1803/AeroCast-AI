@@ -141,13 +141,15 @@ def stage_hybrid(P, cache, log) -> train.Spec:
 EMB_COLS = ("carrier", "origin", "dest")      # low-cardinality only (docs/01_inputs_and_leakage.md)
 
 
-def embedding_features(net, inp: train.Inputs, cat_cols: list[str]) -> np.ndarray:
-    """Learned carrier / origin / destination vectors for every row."""
+def embedding_features(net, inp: train.Inputs, cat_cols: list[str], cat=None) -> np.ndarray:
+    """Learned carrier / origin / destination vectors for every row of
+    ``inp`` (or of the encoded categories ``cat``, same column order)."""
+    cat = inp.cat if cat is None else torch.as_tensor(cat)
     parts = []
     with torch.no_grad():
         for k, c in enumerate(cat_cols):
             if c in EMB_COLS:
-                parts.append(net.embs[k].weight[inp.cat[:, k]].numpy())
+                parts.append(net.embs[k].weight[cat[:, k]].numpy())
     return np.concatenate(parts, axis=1).astype(np.float32)
 
 
@@ -155,17 +157,29 @@ def xgb_phase1_params() -> dict:
     return json.loads((PHASE1_RESULTS / "summary.json").read_text())["xgb_params"]
 
 
-def run_xgb_jobs(jobs: list[tuple[np.ndarray, np.ndarray, np.ndarray]]) -> list[np.ndarray]:
-    """[(embedding features, fit rows, predict rows)] -> XGBoost probabilities."""
+def run_xgb_jobs(jobs: list[tuple], extra_index: np.ndarray | None = None):
+    """[(embedding features, fit rows, predict rows)] -> XGBoost probabilities.
+
+    With ``extra_index`` (index labels in ``P.raw`` of flights that are not
+    modelling rows, e.g. cancelled ones), each job carries a 4th element, the
+    embedding features of those flights, and the result is
+    (probabilities, probabilities of the extra flights)."""
     with tempfile.TemporaryDirectory(dir=config.ROOT) as d:
         payload = {"n_jobs": len(jobs), "params": json.dumps(xgb_phase1_params())}
-        for j, (emb, fit_rows, pred_rows) in enumerate(jobs):
+        if extra_index is not None:
+            payload["extra_index"] = np.asarray(extra_index)
+        for j, (emb, fit_rows, pred_rows, *extra) in enumerate(jobs):
             payload |= {f"emb_{j}": emb, f"fit_{j}": fit_rows, f"pred_{j}": pred_rows}
+            if extra_index is not None:
+                payload[f"extra_emb_{j}"] = extra[0]
         np.savez(Path(d) / "jobs.npz", **payload)
         subprocess.run([sys.executable, "-B", str(config.ROOT / "scripts" / "xgb_worker.py"),
                         str(Path(d) / "jobs.npz"), str(Path(d) / "out.npz")], check=True)
         out = np.load(Path(d) / "out.npz")
-        return [out[f"p_{j}"] for j in range(len(jobs))]
+        probs = [out[f"p_{j}"] for j in range(len(jobs))]
+        if extra_index is None:
+            return probs
+        return probs, [out[f"extra_p_{j}"] for j in range(len(jobs))]
 
 
 def stage_emb_xgb(P, cache, log) -> None:
@@ -175,10 +189,9 @@ def stage_emb_xgb(P, cache, log) -> None:
     spec = load_spec("mlp")
     jobs, meta = [], []
     for k, fit_rows, va, fit_date in train.folds(P):
-        inp = cache.get(("fold", k), fit_rows, fit_date, spec)
-        tr, es = train.inner_split(P, fit_rows, fit_date)
+        inp, es_inp, tr, es = cache.get_es(("fold", k), fit_rows, fit_date, spec)
         for s in config.SEEDS:
-            net, _ = train.refit_as_deployed(spec, inp, fit_rows, tr, es, s)
+            net, _ = train.refit_as_deployed(spec, inp, fit_rows, tr, es, s, es_inp)
             jobs.append((embedding_features(net, inp, P.cat_cols), fit_rows, va))
             meta.append((k, s, va))
     log(f"emb->XGBoost: {len(jobs)} XGBoost fits in a separate process")
@@ -290,9 +303,8 @@ def stage_figures(P, cache, log) -> None:
     curves = {}
     for name in ("mlp", "gru"):
         spec = load_spec(name).with_params(early_stopping=False)
-        tr, es = train.inner_split(P, fit_rows, fit_date)
-        _, info = train.fit(spec, cache.get(("fold", k), fit_rows, fit_date, spec), tr,
-                            config.SEARCH_SEED, es_rows=es, epochs=None)
+        _, es_inp, tr, es = cache.get_es(("fold", k), fit_rows, fit_date, spec)
+        _, info = train.fit(spec, es_inp, tr, config.SEARCH_SEED, es_rows=es, epochs=None)
         curves[{"mlp": "Embedding MLP", "gru": "MLP + GRU history"}[name]] = info["history"][:15]
     (R / "learning_curves.json").write_text(json.dumps(curves, indent=2))
     plots.learning_curves(curves).savefig(F / "learning_curves.png", dpi=200)
@@ -329,10 +341,9 @@ def stage_diagnostics(P, cache, log) -> None:
     def net(spec, refit: bool):
         out = []
         for k, fit_rows, va, fd in folds:
-            inp = cache.get(("fold", k), fit_rows, fd, spec)
-            tr, es = train.inner_split(P, fit_rows, fd)
-            n, info = (train.refit_as_deployed(spec, inp, fit_rows, tr, es, s) if refit
-                       else train.fit(spec, inp, tr, s, es_rows=es))
+            inp, es_inp, tr, es = cache.get_es(("fold", k), fit_rows, fd, spec)
+            n, info = (train.refit_as_deployed(spec, inp, fit_rows, tr, es, s, es_inp) if refit
+                       else train.fit(spec, es_inp, tr, s, es_rows=es))
             out.append((average_precision_score(y[va], train.predict_logits(n, inp, va)), info["best_epoch"]))
         return out
 
