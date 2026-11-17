@@ -1,12 +1,12 @@
 # AeroCast-AI Phase 2: Deep Learning and Hybrid
 
-**Team T49 · AML Project 21 · Phase 2 (deep learning)**. Status: **complete** (models, ablations, the one test run, what-if rescheduling, report). Slides are pending.
+**Team T49 · AML Project 21 · Phase 2 (deep learning)**. Status: **complete** (models, ablations, the test evaluation, what-if rescheduling, report). Slides are pending.
 
 Phase 2 asks whether learned representations recover signal that the hand-built Phase 1 features ([`../phase1/`](../phase1/)) miss. Everything else stays identical, so the comparison is fair:
 
 - **Same inputs:** decision clock 20:00 NYC on D−1, target `arr_delay ≥ 15`, the 43 Phase 1 features, the chronological split (train Jan 8–Aug · calibration Sep–Oct · test Nov–Dec) and the four rolling-origin CV folds (May–Aug). They are imported from the `aerocast` package, not copied.
 - **Models:** an MLP with learned carrier, origin and destination embeddings; the MLP plus a GRU over causal 28-day delay histories of the origin, carrier and route; a **Wide & Deep hybrid** whose wide part starts as the Phase 1 LogReg; and MLP embeddings fed to the Phase 1 XGBoost.
-- **Rules first:** the selection and calibration rules and the test lock were committed before any model was trained ([docs/06](docs/06_rules_and_limitations.md)); the test labels were read once.
+- **Rules first:** the selection and calibration rules and the test lock were committed before any model was trained ([docs/06](docs/06_rules_and_limitations.md)). Test labels are scored only in the locked final stage. It ran twice: a code audit after the first run removed two leaks (Wide & Deep's early-stopping holdout; the rescheduling and flag-budget cohort), and the stage was rerun. Only Wide & Deep and the top-k and rescheduling numbers changed; the first run stays in git history.
 
 **Start with the [documentation](docs/README.md)**: six short documents explaining the inputs, models, results, test evaluation, rescheduling and rules, in reading order.
 
@@ -15,7 +15,7 @@ Phase 2 asks whether learned representations recover signal that the hand-built 
 | Model | CV AP (May–Aug, 5 seeds) | Test AP (Nov–Dec) | Test ECE | Test AP − LogReg, 95% CI |
 |---|---|---|---|---|
 | **LogReg (Phase 1), final model** | **0.471** | 0.392 | 0.027 | – |
-| Wide & Deep | 0.469 | 0.399 | 0.028 | +0.007 [−0.005, 0.023] |
+| Wide & Deep | 0.468 | 0.394 | 0.036 | +0.003 [−0.016, 0.022] |
 | MLP + GRU history | 0.467 | 0.398 | 0.035 | +0.006 [−0.013, 0.028] |
 | Embedding MLP | 0.465 | 0.395 | 0.027 | +0.003 [−0.015, 0.027] |
 | Embeddings → XGBoost | 0.450 | 0.400 | 0.017 | +0.009 [−0.014, 0.033] |
@@ -23,10 +23,10 @@ Phase 2 asks whether learned representations recover signal that the hand-built 
 
 - **No network beats LogReg on cross-validation.** By the pre-registered rule (best CV AP; within 0.005, fewer parameters) LogReg stays the final model. On test every Phase 2 model scores slightly higher, but no day-block bootstrap interval excludes zero.
 - **Why:** the hidden layers overfit after one or two epochs. The Phase 1 history features are already smoothed rates, so the remaining signal is close to linear. A CV procedure error (scoring the early-stopped network instead of the deployed refit) was found and corrected before testing.
-- **Ablations:** the GRU cannot replace the hand-built history (−0.015 CV AP). Embeddings vs one-hot makes no material difference (−0.001). Early stopping is the regulariser that matters (−0.035 without it).
-- **What-if rescheduling** (tuned on Sep–Oct, offline): 48 moves a day avoid 1.9 **predicted** delays a day on Nov–Dec. A naive "everything 1 h earlier" rule avoids 0.1.
+- **Ablations:** the GRU cannot replace the hand-built history (−0.015 CV AP). Embeddings vs one-hot makes no material difference in the MLP (−0.001) and a small one in Wide & Deep (−0.005 with one-hot). Early stopping is the regulariser that matters (−0.035 without it).
+- **What-if rescheduling** (tuned on Sep–Oct, offline): 49 moves a day avoid 1.9 **predicted** delays a day on Nov–Dec. A naive "everything 1 h earlier" rule avoids 0.1.
 
-Report: [report/main.pdf](report/main.pdf) (7 pages).
+Report: [report/main.pdf](report/main.pdf) (8 pages).
 
 ## Team and roles
 
@@ -68,8 +68,8 @@ python -m ipykernel install --sys-prefix --name aerocast   # once, for the noteb
 | [06_embedding_mlp](notebooks/06_embedding_mlp.ipynb) | Step 3: embedding MLP search, 5-seed CV, learning curves, learned embeddings, why it trails LogReg |
 | [07_gru_history_model](notebooks/07_gru_history_model.ipynb) | Step 4: causal history windows, decision clock, GRU model |
 | [08_wide_deep_hybrid](notebooks/08_wide_deep_hybrid.ipynb) | Step 5: Wide & Deep on the Phase 1 LogReg; embeddings into XGBoost |
-| [09_ablation_studies](notebooks/09_ablation_studies.ipynb) | Step 6: 16 ablations on rolling CV |
-| [10_calibration_and_test](notebooks/10_calibration_and_test.ipynb) | Step 7: Sep→Oct calibration, final-model rule, the one test run, slices, drift |
+| [09_ablation_studies](notebooks/09_ablation_studies.ipynb) | Step 6: 17 ablations on rolling CV |
+| [10_calibration_and_test](notebooks/10_calibration_and_test.ipynb) | Step 7: Sep→Oct calibration, final-model rule, the test run, slices, drift |
 | [11_whatif_rescheduling](notebooks/11_whatif_rescheduling.ipynb) | Step 8: what-if rescheduling under explicit assumptions |
 | [docs/](docs/README.md) | project documentation: overview and the six explanatory documents |
 

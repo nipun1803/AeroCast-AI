@@ -22,7 +22,7 @@ For a fair answer, Phase 2 changes **only the model**. Everything below is impor
 | Model | CV AP (May–Aug) | Test AP (Nov–Dec) | Test AP − LogReg [95% CI] |
 |---|---|---|---|
 | **LogReg (Phase 1), final model** | **0.471** | 0.392 | – |
-| Wide & Deep (LogReg + MLP + GRU) | 0.469 | 0.399 | +0.007 [−0.005, +0.023] |
+| Wide & Deep (LogReg + MLP + GRU) | 0.468 | 0.394 | +0.003 [−0.016, +0.022] |
 | MLP + GRU history | 0.467 | 0.398 | +0.006 [−0.013, +0.028] |
 | Embedding MLP | 0.465 | 0.395 | +0.003 [−0.015, +0.027] |
 | Embeddings → XGBoost | 0.450 | 0.400 | +0.009 [−0.014, +0.033] |
@@ -34,7 +34,7 @@ For a fair answer, Phase 2 changes **only the model**. Everything below is impor
   - Their hidden layers overfit after one or two epochs.
   - The Phase 1 history features are already smoothed delay rates, so what remains to learn is close to linear in them.
   - The GRU cannot replace those features (−0.015 CV AP), and learned embeddings are no better than one-hot encoding.
-- **What-if rescheduling** (offline, predicted effects only) avoids 1.9 predicted delays a day with 48 moves a day.
+- **What-if rescheduling** (offline, predicted effects only) avoids 1.9 predicted delays a day with 49 moves a day.
 
 ## Reading order
 
@@ -42,12 +42,12 @@ For a fair answer, Phase 2 changes **only the model**. Everything below is impor
 |---|---|---|---|
 | 1 | [01_inputs_and_leakage.md](01_inputs_and_leakage.md) | the decision clock, network inputs, causal history windows, how leakage is prevented and tested | 05, 07 (Part A) |
 | 2 | [02_models_and_training.md](02_models_and_training.md) | the four architectures, how they are trained, searched and scored | 06, 07 (Part B), 08 |
-| 3 | [03_cv_results_and_ablations.md](03_cv_results_and_ablations.md) | the CV comparison, why the networks trail LogReg, 16 ablations | 06, 08, 09 |
-| 4 | [04_calibration_and_test.md](04_calibration_and_test.md) | calibration, the final-model rule, the one test evaluation, where the models differ | 10 |
+| 3 | [03_cv_results_and_ablations.md](03_cv_results_and_ablations.md) | the CV comparison, why the networks trail LogReg, 17 ablations | 06, 08, 09 |
+| 4 | [04_calibration_and_test.md](04_calibration_and_test.md) | calibration, the final-model rule, the test evaluation (run twice), where the models differ | 10 |
 | 5 | [05_whatif_rescheduling.md](05_whatif_rescheduling.md) | the offline re-timing analysis and its assumptions | 11 |
 | 6 | [06_rules_and_limitations.md](06_rules_and_limitations.md) | rules fixed before training, the test lock, every later change, limitations | – |
 
-The 7-page IEEE report is [../report/main.pdf](../report/main.pdf). How to run everything is in [../README.md](../README.md#run).
+The 8-page IEEE report is [../report/main.pdf](../report/main.pdf). How to run everything is in [../README.md](../README.md#run).
 
 ## Terms used throughout
 
