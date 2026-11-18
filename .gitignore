@@ -32,3 +32,5 @@ phase2/data/cache/
 # Earlier 22-page version of the Phase 1 report (kept locally as a viva supplement;
 # compiles on its own: cd phase1/report/long_version && tectonic -X compile main.tex).
 phase1/report/long_version/
+README_SLIDES_7_AND_8_CONCEPTS.md
+README_SLIDES_7_AND_8_QUESTIONS.md

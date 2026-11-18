@@ -12,6 +12,20 @@ Predict whether a flight arrives **≥ 15 min late** using only information avai
 
 Phase 2 reuses Phase 1's decision clock, target, features, chronological split and CV folds by importing the `aerocast` package from `phase1/src/`, so the two phases are compared on identical, leakage-tested inputs.
 
+## Results (test set, Nov–Dec 2013)
+
+| Model | PR AUC | ROC AUC | Recall @ precision 0.5 | Brier |
+|---|---|---|---|---|
+| Random guess | 0.258 | 0.500 | – | – |
+| Logistic Regression (Phase 1) | 0.392 | 0.657 | 0.119 | 0.181 |
+| XGBoost (Phase 1) | 0.407 | 0.665 | 0.170 | 0.179 |
+| MLP with embeddings | 0.395 | 0.668 | 0.105 | 0.180 |
+| MLP + GRU history | 0.398 | 0.668 | 0.090 | 0.180 |
+| Wide & Deep | 0.394 | 0.656 | 0.139 | 0.181 |
+| Embeddings → XGBoost | 0.400 | 0.664 | 0.146 | 0.179 |
+
+*Note: Models evaluated on test (Nov–Dec 2013, 53,991 flights, base rate 0.258) using pre-registered calibration rules (rolling Platt 28d for LogReg, Embedding MLP, GRU, and Wide & Deep; raw for XGBoost; rolling temperature for Embeddings → XGBoost). See [phase2/README.md](phase2/README.md#results-test-set-novdec-2013) for full cross-validation and ablation details.*
+
 ## Team
 
 | Member | GitHub ID |

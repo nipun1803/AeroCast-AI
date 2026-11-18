@@ -10,7 +10,21 @@ Phase 2 asks whether learned representations recover signal that the hand-built 
 
 **Start with the [documentation](docs/README.md)**: six short documents explaining the inputs, models, results, test evaluation, rescheduling and rules, in reading order.
 
-## Results
+## Results (test set, Nov–Dec 2013)
+
+| Model | PR AUC | ROC AUC | Recall @ precision 0.5 | Brier |
+|---|---|---|---|---|
+| Random guess | 0.258 | 0.500 | – | – |
+| Logistic Regression (Phase 1) | 0.392 | 0.657 | 0.119 | 0.181 |
+| XGBoost (Phase 1) | 0.407 | 0.665 | 0.170 | 0.179 |
+| MLP with embeddings | 0.395 | 0.668 | 0.105 | 0.180 |
+| MLP + GRU history | 0.398 | 0.668 | 0.090 | 0.180 |
+| Wide & Deep | 0.394 | 0.656 | 0.139 | 0.181 |
+| Embeddings → XGBoost | 0.400 | 0.664 | 0.146 | 0.179 |
+
+*Note: Models evaluated on test (Nov–Dec 2013, 53,991 flights, base rate 0.258) using pre-registered calibration rules (rolling Platt 28d for LogReg, Embedding MLP, GRU, and Wide & Deep; raw for XGBoost; rolling temperature for Embeddings → XGBoost). Raw uncalibrated test metrics: LogReg PR AUC 0.393 / ROC AUC 0.653 / Recall@p0.5 0.128 / Brier 0.181; Embedding MLP 0.404 / 0.666 / 0.153 / 0.180; MLP + GRU 0.398 / 0.657 / 0.139 / 0.181; Wide & Deep 0.388 / 0.642 / 0.127 / 0.184; Embeddings → XGBoost 0.401 / 0.663 / 0.145 / 0.180.*
+
+### Model Selection (Development CV vs Test)
 
 | Model | CV AP (May–Aug, 5 seeds) | Test AP (Nov–Dec) | Test ECE | Test AP − LogReg, 95% CI |
 |---|---|---|---|---|
@@ -32,13 +46,25 @@ Report: [report/main.pdf](report/main.pdf) (8 pages).
 
 Team number: **T49**. Phase 1 roles are in [../phase1/README.md](../phase1/README.md#team-and-roles).
 
-| Member | GitHub ID | Phase 2 role |
-|---|---|---|
-| **Nipun Patlori** | [nipun1803](https://github.com/nipun1803) | Hyperparameter searches, Wide & Deep and embeddings → XGBoost hybrids, ablation results; IEEE report |
-| **Anushka Tyagi** | [anu-ushka](https://github.com/anu-ushka) | Embedding MLP, training loop and CV-as-deployed procedure; diagnostics of why the MLP trails LogReg |
-| **Omkar Hadole** | [omkar-hadole](https://github.com/omkar-hadole) | What-if rescheduling rule: tuning on Sep–Oct and the Nov–Dec analysis |
-| **Mohan Kumar C R** | [mohan101mk](https://github.com/mohan101mk) | Calibration, final-model rule, test lock and the one test evaluation (slices, drift, confusion matrices); protocol |
-| **Krish Dabas** | [krish-2509](https://github.com/krish-2509) | Infrastructure and reproducibility (torch/XGBoost process split, `reproduce.sh`, report checks); notebooks and documentation |
+### Team (Phase 2 contributions)
+
+| Member | GitHub ID | Role | Work Summary (2–3 words) | Contribution (Simple Terminology) |
+|---|---|---|---|---|
+| **Nipun Patlori** | [nipun1803](https://github.com/nipun1803) | Hybrids | Temporal Models & Reporting | Combined neural networks with tree models, evaluated delay patterns across time, and co-created the report and presentation |
+| **Mohan Kumar C R** | [mohan101mk](https://github.com/mohan101mk) | Architecture | Neural Network Design | Designed deep neural network architectures with flight embeddings, trained models with early stopping, and co-created the report and presentation |
+| **Anushka Tyagi** | [anu-ushka](https://github.com/anu-ushka) | Calibration | Calibration & Testing | Calibrated delay prediction probabilities, locked test evaluations, and audited reliability across airport segments |
+| **Omkar Hadole** | [omkar-hadole](https://github.com/omkar-hadole) | Rescheduling | Flight Rescheduling Simulation | Designed and tested the flight rescheduling simulation to minimize delays and evaluated operational flight savings |
+| **Krish Dabas** | [krish-2509](https://github.com/krish-2509) | Preprocessing | Data Pipeline Preparation | Cleaned raw data into neural network inputs, generated 28-day history sequences, and prevented data leakage |
+
+### Notebook and Module Ownership
+
+| # | Notebook | Owner | Phase 2 rubric | Module(s) it writes |
+|---|---|---|---|---|
+| 05 | [`05_network_inputs.ipynb`](notebooks/05_network_inputs.ipynb) | Krish Dabas | DL dataset, leakage validation | `tensors.py`, `sequences.py`, `guards.py` |
+| 06, 08 | [`06_embedding_mlp.ipynb`](notebooks/06_embedding_mlp.ipynb), [`08_wide_deep_hybrid.ipynb`](notebooks/08_wide_deep_hybrid.ipynb) | Mohan Kumar C R | Architecture, regularization | `models.py`, `train.py` |
+| 07, 09 | [`07_gru_history_model.ipynb`](notebooks/07_gru_history_model.ipynb), [`09_ablation_studies.ipynb`](notebooks/09_ablation_studies.ipynb) | Nipun Patlori | Temporal model, hybrid, model selection | `pipeline.py`, `report.py` |
+| 10 | [`10_calibration_and_test.ipynb`](notebooks/10_calibration_and_test.ipynb) | Anushka Tyagi | Ablation, calibration, test lock | `calibrate.py`, `evaluation.py`, `testlock.py` |
+| 11 | [`11_whatif_rescheduling.ipynb`](notebooks/11_whatif_rescheduling.ipynb) | Omkar Hadole | Final test, operational metrics, what-if | `reschedule.py` |
 
 ## Run
 
