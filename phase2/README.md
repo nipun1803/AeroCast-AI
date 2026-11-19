@@ -83,7 +83,6 @@ python -m ipykernel install --sys-prefix --name aerocast   # once, for the noteb
 - **Determinism.** Seeds 42–46, deterministic torch algorithms, CPU.
 - **Stage times** (M3 Pro). GRU search 28 min, Wide & Deep 26 min, ablations 39 min; every other stage takes a few minutes.
 - **macOS OpenMP.** `import aerocast_dl` loads torch before XGBoost and refuses the reverse order, which crashes on macOS. XGBoost fits run in a separate process (`scripts/xgb_worker.py`).
-- **iCloud.** If the repository is in an iCloud folder, evicted files hang on read. Keep the venv outside iCloud, and fetch evicted files with `brctl download` (`find . -flags +dataless` lists them).
 - **Model weights.** The final weights are cached in the git-ignored `data/cache/`. On a fresh clone, run `final_fit` before `reschedule` or `--final`.
 
 ## Contents
